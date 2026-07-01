@@ -1,0 +1,186 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+
+\title{Moss Landing Fire Independent Study Progress Report}
+\author{Myles Hallett}
+\date{June 11, 2026}
+
+\begin{document}
+
+\maketitle
+
+\section*{Overview}
+
+This report summarizes progress on my independent study focused on the January 2025 Moss Landing battery fire. The current project combines PurpleAir PM$_{2.5}$ data with HYSPLIT forward-dispersion modeling driven by HRRR meteorological data. The near-term goal is not to produce a final validated exposure product, but to build a reproducible workflow and evaluate how sensitive modeled plume behavior is to source assumptions such as release height, release duration, and source geometry.
+
+\section*{Current Research Question}
+
+The main question at this stage is whether a reasonably configured HYSPLIT simulation can reproduce the broad timing and footprint of observed PM$_{2.5}$ enhancement in the regional PurpleAir network. A related goal is to assess whether the modeled plume is highly assumption-dependent, which would make any single operational plume product potentially misleading if source terms are poorly constrained.
+
+\section*{Work Completed so far}
+
+\subsection*{PurpleAir Data and Visualization}
+
+\begin{itemize}
+\item PurpleAir sensor discovery, historical availability screening, and hourly data pulls were completed for the January 14--25, 2025 period.
+\item The working historical dataset contains hourly PM$_{2.5}$ observations for 132 sensors in the Moss Landing, Monterey Bay, Santa Cruz, Watsonville, and inland surrounding areas.
+\item A regional PurpleAir bubble-map visualization was built and is now reproducible from local CSV data.
+\item Several clearly pathological sensors were identified and filtered out of the visualization workflow. These sensors were effectively stuck at implausibly high PM$_{2.5}$ values throughout the event window and would otherwise dominate the animation.
+\item The current PurpleAir visualization supports multiple basemap styles. I used a grayscale Esri basemap because it preserves geographic context without competing visually with the AQI sensor colors.
+% \item Current PurpleAir visualization (single frame):
+% \begin{center}
+% \includegraphics[width=200pt]{images/purple_air_frame.png}
+% \end{center}
+\end{itemize}
+
+\subsection*{HYSPLIT Setup and Forward Dispersion Workflow}
+
+\begin{itemize}
+\item HYSPLIT forward-dispersion runs are configured locally using HRRR meteorological files.
+\item The forward workflow supports:
+\begin{itemize}
+\item separate simulation start, release start, and sample-window times
+\item 4-hour integrated concentration windows
+\item batch sweeps with \texttt{--jobs} for parallel execution
+\item a small area-source approximation instead of only a single point source
+\end{itemize}
+\item There's a custom post-processing script now reads HYSPLIT \texttt{cdump} output directly and produces cleaner diagnostic figures than the native HYSPLIT PDF plots.
+\item These custom plots include plume-focused views, optional basemaps, timing annotations, and data exports for later comparison work.
+\end{itemize}
+
+\subsection*{Release-Height Ensemble}
+
+\begin{itemize}
+\item A dedicated time-height ensemble driver was added to generate 4-hour forward plumes from ignition onward.
+\item The completed ensemble uses release heights of 10, 25, 50, 100, and 250 meters.
+\item The simulation sequence begins at the estimated ignition time and advances in 4-hour windows.
+\item The full ensemble produced 60 completed forward-dispersion runs.
+\item Each run has already been post-processed into:
+\begin{itemize}
+\item \texttt{cdump\_custom.png}
+\item \texttt{cdump\_nonzero.csv}
+\item \texttt{cdump\_summary.json}
+\end{itemize}
+\item There's now a gallery of 60 different images to view, each with annotations of initial configurations.
+\end{itemize}
+
+\section*{Preliminary Findings}
+
+\begin{itemize}
+\item The forward plume is highly sensitive to source assumptions.
+\item Release timing matters strongly. Runs that stop emitting too early relative to a sampled 4-hour window tend to show detached downwind residuals rather than plume structure that remains connected to Moss Landing.
+\item Source geometry matters. A small area-source approximation produces more reasonable plume structure than a single point release.
+\item Release height matters substantially. The time-height ensemble shows that plume spread, inland transport, and ground-level footprint differ quite meaningfully across the 10--250 m range.
+\item PurpleAir data show real enhancement patterns that are not trivially explained by a single simple HYSPLIT setup. This is important because it suggests that modeled plume products may be very sensitive to assumptions that are difficult to constrain in a real emergency.
+\item I wasn't able to get the exact plume geometry that the original Monterey County Operational Area showed in their report, but initial findings show that HYSPLIT differs quite meaningfully from the enhancement seen on PurpleAir sensors.
+\end{itemize}
+
+\section*{Selected Figures}
+
+Here are 4 different figures. One is a snapshot of the PurpleAir visualization, and the other three are dispersion contour maps from the rendering process (with HYSPLIT data) after 4 hours of integration at different release heights. There are 60 images total of different HYSPLIT configurations, but I thought these showcased a good range of behavior from HYSPLIT.
+
+\begin{figure}[h]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{images/purple_air_frame.png}
+\par\vspace{3pt}
+\small PurpleAir snapshot
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{images/hysplit_height_10m_placeholder.png}
+\par\vspace{3pt}
+\small HYSPLIT, 10 m release
+\end{minipage}
+
+\vspace{0.8em}
+
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{images/hysplit_height_50m_placeholder.png}
+\par\vspace{3pt}
+\small HYSPLIT, 50 m release
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{images/hysplit_height_250m_placeholder.png}
+\par\vspace{3pt}
+\small HYSPLIT, 250 m release
+\end{minipage}
+
+% \caption{Replace the short labels above or add a full caption here once the final figure set is chosen.}
+\end{figure}
+
+% \begin{figure}[h]
+% \centering
+% \includegraphics[width=0.85\textwidth]{images/model_observation_mismatch_placeholder.png}
+% \caption{Placeholder for a figure or panel set highlighting disagreement between PurpleAir observations and a modeled plume window. This is likely the most important figure concept if the report emphasizes uncertainty in operational plume products.}
+% \end{figure}
+
+\section*{Reproducible Commands}
+
+Representative commands used in the current workflow are shown below.
+
+\begin{itemize} 
+  \item PurpleAir visualization gif (and html) generation:
+  \begin{verbatim}
+MPLCONFIGDIR=/tmp/mplconfig ./.venv/bin/python \
+  scripts/purple_air/tier1_bubble_map.py --html --gif --basemap-style gray
+\end{verbatim}
+
+  \item To run HYSPLIT and get data:
+  \begin{verbatim}
+./.venv/bin/python scripts/hysplit/run_forward_time_height_ensemble.py \
+  --ignition-utc 2025-01-16T23:00:00Z \
+  --stop-utc 2025-01-18T23:00:00Z \
+  --window-hours 4 \
+  --window-step-hours 4 \
+  --source-heights-m 10,25,50,100,250 \
+  --source-geometry area_grid \
+  --source-footprint-m 300,120 \
+  --source-grid-shape 5,3 \
+  --jobs 8 \
+  --run-tag-prefix report_height_ensemble
+\end{verbatim}
+
+  \item To generate the renders from HYSPLIT data: 
+  \begin{verbatim}
+find hysplit/runs/forward_dispersion/sweeps \
+  -path '*/report_height_ensemble_*' -name cdump -print0 | \
+  xargs -0 -P 6 -I{} ./.venv/bin/python scripts/hysplit/plot_cdump.py \
+  {} --view plume
+\end{verbatim}
+\end{itemize}
+
+\section*{Important Output Locations (in the project folder)}
+
+\begin{itemize}
+\item \texttt{figures/visualization/tier1\_bubble\_map.html}
+\item \texttt{figures/visualization/tier1\_bubble\_map.gif}
+\item \texttt{figures/visualization/tier1\_bubble\_map\_filtered\_sensors.csv}
+\item \texttt{hysplit/runs/forward\_dispersion/sweeps/report\_height\_ensemble\_manifest.csv}
+\item PNG-aware ensemble manifest:
+\texttt{hysplit/runs/forward\_dispersion/sweeps/}\\
+\texttt{report\_height\_ensemble\_manifest\_with\_pngs.csv}
+\item \texttt{hysplit/runs/forward\_dispersion/sweeps/report\_height\_ensemble\_gallery/}
+\end{itemize}
+
+\section*{Next Steps}
+
+\begin{itemize}
+\item Select representative plume panels from the height ensemble for direct inclusion in the report or presentation materials.
+\item Compare modeled 4-hour plume evolution against PurpleAir enhancement timing more systematically.
+\item Test additional source-term sensitivities, especially release duration, release decay, footprint size, and possible plume-rise approximations.
+\item Use the current results to frame a stronger discussion of model uncertainty rather than treating any single HYSPLIT output as a definitive answer.
+\end{itemize}
+
+\section*{Summary}
+
+This independent study has already produced a working observational and modeling pipeline. PurpleAir observations have been cleaned and visualized, HYSPLIT forward dispersion has been configured with HRRR input, and a full 4-hour release-height ensemble has been completed and rendered. The project is not finished, but it has progressed far enough to support a progress report like this and to motivate deeper follow-up work.
+
+\end{document}
