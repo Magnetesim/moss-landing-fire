@@ -142,6 +142,8 @@ This file should stay out of Git.
 
 These are local-only runtime inputs/outputs. The repository only includes `hysplit/README.md`; HYSPLIT binaries must be downloaded separately through the NOAA HYSPLIT distribution/registration process.
 
+The exact HRRR archive source and file list are documented in `docs/local_data.md`.
+
 ### Reference Docs
 
 - `docs/MLVPP-Fire-EAP_OP3-20250118.pdf`

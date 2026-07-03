@@ -118,6 +118,9 @@ def main() -> None:
     for met in files:
         print(f"  {met.filename}")
 
+    if args.dry_run:
+        return
+
     lftp_bin = require_program("lftp")
 
     for met in files:

@@ -39,6 +39,8 @@ To download the required HRRR archive blocks for a simulation window:
   --end-utc 2025-01-18T06:00:00Z
 ```
 
+For the exact HRRR source path and file list used by this project, see [docs/local_data.md](/home/magnetesim/Documents/project/moss_landing_fire/docs/local_data.md).
+
 ## Quick Start
 
 Rebuild a PurpleAir raw map:

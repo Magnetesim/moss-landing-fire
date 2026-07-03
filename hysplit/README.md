@@ -25,6 +25,12 @@ hysplit/install/hysplit.v5.4.2_x86_64/python/hysplitdata/
 - HRRR meteorology files in `hrrr/`
 - local PurpleAir API key in `purple_air_api.txt`
 
+The exact HRRR source, dates, and file names are documented in:
+
+```text
+docs/local_data.md
+```
+
 ## Notes
 
 - `hysplit/install/` is ignored by Git
