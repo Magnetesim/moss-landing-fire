@@ -15,7 +15,7 @@ Project root:
 
 Status date:
 
-- `2026-06-29`
+- `2026-07-02`
 
 ## Current Summary
 
@@ -73,6 +73,8 @@ That mismatch is now documented visually and numerically.
 - visualization outputs are organized by product family
 - phase-1 comparison gallery exists locally
 - remote PC workflow was proven for larger sweeps
+- GitHub repository is initialized and pushed to `git@github.com:Magnetesim/moss-landing-fire.git`
+- generated figures, HYSPLIT binaries/runs, HRRR files, and local secrets are excluded from Git
 
 ## Main Open Problems
 
@@ -86,7 +88,7 @@ That mismatch is now documented visually and numerically.
 - PurpleAir QA is better than before but still not fully production-grade
 - kriging/interpolation can still be biased by sparse regions and local outliers
 - cluster-scale sweep tooling has been discussed but not yet implemented
-- repository portability is still being cleaned up for Git use
+- native Windows support has not been implemented yet
 
 ## Important Inputs
 
@@ -95,6 +97,24 @@ That mismatch is now documented visually and numerically.
 - `purple_air_api.txt`
 
 This file should stay out of Git.
+
+### Git-tracked / portable
+
+- code and scripts
+- cleaned PurpleAir CSVs
+- selected public/reference documents
+- LaTeX report source
+- Python dependency metadata
+- setup notes for local-only HYSPLIT and HRRR requirements
+
+### Local-only / regenerated
+
+- `hrrr/`
+- `hysplit/install/`
+- `hysplit/runs/`
+- `figures/`
+- `report/images/`
+- `report/moss_landing_progress_report.pdf`
 
 ### PurpleAir Data
 
@@ -119,6 +139,8 @@ This file should stay out of Git.
 
 - `hrrr/`
 - `hysplit/`
+
+These are local-only runtime inputs/outputs. The repository only includes `hysplit/README.md`; HYSPLIT binaries must be downloaded separately through the NOAA HYSPLIT distribution/registration process.
 
 ### Reference Docs
 
@@ -228,6 +250,28 @@ Interpretation:
 - lower release heights and broader area footprints tended to rank better in the phase-1 sweep
 - 4-hour windows are the right comparison unit for the current study
 - custom Python rendering is preferred over native HYSPLIT PDF products for interpretation
+- current HYSPLIT automation is Linux/Unix-oriented and assumes the local NOAA binary bundle under `hysplit/install/hysplit.v5.4.2_x86_64/`
+
+## Windows Support Notes
+
+Native Windows support is possible but not implemented yet.
+
+Windows should already be reasonable for:
+
+- Git clone/push workflow
+- Python-based PurpleAir processing
+- kriging and visualization scripts, subject to Python package installation
+- LaTeX report editing/building if TeX Live is installed
+
+The main unresolved Windows issue is HYSPLIT execution. NOAA does provide Windows binaries, but the current scripts still assume:
+
+- Unix-like paths
+- Linux-style HYSPLIT install layout
+- executable names without `.exe`
+- symlink support for `bdyfiles`
+- Unix helper tools for some workflows
+
+Future Windows support should test a minimal forward-dispersion dry run first, then add platform handling for executable names, install paths, symlink/copy behavior, and generated helper scripts.
 
 ## Typical Commands
 
