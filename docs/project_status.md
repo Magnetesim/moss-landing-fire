@@ -15,7 +15,7 @@ Project root:
 
 Status date:
 
-- `2026-07-02`
+- `2026-07-10`
 
 ## Current Summary
 
@@ -73,6 +73,8 @@ That mismatch is now documented visually and numerically.
 - visualization outputs are organized by product family
 - phase-1 comparison gallery exists locally
 - remote PC workflow was proven for larger sweeps
+- NERSC login and SSH key-based access have been verified
+- NERSC project/account for Slurm submissions has been identified as `m4007`
 - GitHub repository is initialized and pushed to `git@github.com:Magnetesim/moss-landing-fire.git`
 - generated figures, HYSPLIT binaries/runs, HRRR files, and local secrets are excluded from Git
 
@@ -87,7 +89,9 @@ That mismatch is now documented visually and numerically.
   - potential plume-rise effects
 - PurpleAir QA is better than before but still not fully production-grade
 - kriging/interpolation can still be biased by sparse regions and local outliers
-- cluster-scale sweep tooling has been discussed but not yet implemented
+- NERSC/Slurm scale-up path is now partially scoped but not implemented
+- HYSPLIT/HRRR runtime assets still need to be staged on Perlmutter
+- Slurm-native manifest/array tooling has not been written yet
 - native Windows support has not been implemented yet
 
 ## Important Inputs
@@ -115,6 +119,31 @@ This file should stay out of Git.
 - `figures/`
 - `report/images/`
 - `report/moss_landing_progress_report.pdf`
+
+### NERSC / Perlmutter Runtime Inputs
+
+The NERSC target scratch workspace is expected to be:
+
+- `/pscratch/sd/m/mthallet/moss-landing-fire`
+
+The Perlmutter scratch directory checked on `2026-07-05` was mostly empty, so the project still needs to be staged there from scratch.
+
+Local-only assets that need to be transferred or recreated on NERSC:
+
+- HYSPLIT install tree:
+  - `hysplit/install/hysplit.v5.4.2_x86_64/exec/`
+  - `hysplit/install/hysplit.v5.4.2_x86_64/bdyfiles/`
+  - `hysplit/install/hysplit.v5.4.2_x86_64/graphics/`
+- HRRR ARL meteorology files under `hrrr/`
+- generated run/output directories under `hysplit/runs/`
+
+The HYSPLIT executable bundle is small enough to transfer from the laptop. HRRR files are large enough that transfer method matters; preferred options are:
+
+1. Globus to the `NERSC DTN` endpoint for robust large transfers into Perlmutter scratch.
+2. `rsync -avP` to `dtn.nersc.gov` if Globus is more friction than it is worth.
+3. NOAA ARL FTP redownload only for missing or corrupt HRRR files.
+
+Do not push HYSPLIT binaries, HRRR files, or generated run products into Git.
 
 ### PurpleAir Data
 
@@ -230,7 +259,7 @@ Interpretation:
 
 - higher score is better
 - scores are composite similarity scores, not physical validation scores
-- current “best” scenarios are still only moderate matches
+- current "best" scenarios are still only moderate matches
 
 ### Report
 
@@ -253,6 +282,174 @@ Interpretation:
 - 4-hour windows are the right comparison unit for the current study
 - custom Python rendering is preferred over native HYSPLIT PDF products for interpretation
 - current HYSPLIT automation is Linux/Unix-oriented and assumes the local NOAA binary bundle under `hysplit/install/hysplit.v5.4.2_x86_64/`
+
+## NERSC / Perlmutter Notes
+
+NERSC access has been brought far enough along to begin staging and Slurm smoke tests.
+
+Verified account/access facts:
+
+- NERSC username: `mthallet`
+- Perlmutter SSH target: `perlmutter.nersc.gov`
+- Slurm project/account: `m4007`
+- Home directory: `/global/homes/m/mthallet`
+- Scratch directory: `/pscratch/sd/m/mthallet`
+- CFS root: `/global/cfs/cdirs`
+- SSH key workflow: NERSC `sshproxy`
+- Codex/Windows SSH alias `perlmutter` works when the sandbox is allowed to read the Windows SSH config and key
+
+The `sshproxy` Windows client was installed and used successfully. It creates short-lived keys under:
+
+```text
+C:\Users\myles\.ssh\nersc
+C:\Users\myles\.ssh\nersc.pub
+C:\Users\myles\.ssh\nersc-cert.pub
+```
+
+The Windows SSH config alias can use:
+
+```sshconfig
+Host perlmutter
+    HostName perlmutter.nersc.gov
+    User mthallet
+    IdentityFile C:\Users\myles\.ssh\nersc
+    IdentitiesOnly yes
+    ForwardAgent yes
+```
+
+Verified from Codex:
+
+```bash
+ssh perlmutter hostname
+```
+
+returned a Perlmutter login node such as `login08` or `login32`.
+
+### NERSC Python Environment
+
+The default bare `python` on Perlmutter was Python 2.7.18.
+
+After:
+
+```bash
+module load python
+```
+
+Perlmutter loaded the NERSC Python module:
+
+```text
+/global/common/software/nersc/pe/conda-envs/26.1.0/python-3.13/nersc-python/bin/python
+Python 3.13.11
+```
+
+This is good for basic smoke tests but does not match this project exactly because `pyproject.toml` currently requires:
+
+```text
+>=3.12,<3.13
+```
+
+Recommended NERSC environment approach:
+
+1. use Conda to create a Python 3.12 interpreter environment on scratch
+2. install/use `uv` inside that environment for project dependency syncing
+
+Example:
+
+```bash
+module load conda
+conda create -p "$SCRATCH/conda-envs/moss-py312" python=3.12 -y
+conda activate "$SCRATCH/conda-envs/moss-py312"
+python --version
+pip install uv
+```
+
+Then from the staged project root:
+
+```bash
+uv sync
+```
+
+This keeps the local/laptop workflow aligned with `uv` while using Conda only for the interpreter version that NERSC's default Python module does not provide.
+
+### NERSC Slurm Direction
+
+The current HYSPLIT scripts can run local multi-case batches with `--jobs`, but that is not ideal for Slurm.
+
+The preferred Slurm architecture is:
+
+1. build a manifest CSV with one row per HYSPLIT run
+2. submit a Slurm array where each array task runs exactly one manifest row
+3. write one output directory and one status row per task
+4. merge task manifests after the array completes
+5. run scoring/postprocessing as a separate Slurm job
+
+This is especially natural for backward receptor trajectories because each run is:
+
+```text
+receptor event x duration x starting height
+```
+
+Forward dispersion scenario sweeps can use the same shape:
+
+```text
+source scenario x sample window
+```
+
+Suggested future directory for cluster helpers:
+
+```text
+nersc/
+```
+
+Suggested files:
+
+- `nersc/env.sh`
+- `nersc/smoke.slurm`
+- `nersc/build_backward_manifest.slurm`
+- `nersc/run_backward_array.slurm`
+- `nersc/merge_backward_manifest.slurm`
+- `nersc/score_backward.slurm`
+- `nersc/build_forward_manifest.slurm`
+- `nersc/run_forward_array.slurm`
+- `nersc/score_forward.slurm`
+
+Initial Slurm smoke-test shape:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=moss-smoke
+#SBATCH --account=m4007
+#SBATCH --qos=debug
+#SBATCH --constraint=cpu
+#SBATCH --nodes=1
+#SBATCH --time=00:05:00
+#SBATCH --output=moss-smoke-%j.out
+
+set -euxo pipefail
+
+module load python
+
+hostname
+date
+pwd
+echo "USER=$USER"
+echo "SCRATCH=$SCRATCH"
+echo "CFS=$CFS"
+which python
+python --version
+```
+
+Initial array shape once manifest runners exist:
+
+```bash
+#SBATCH --array=0-423%64
+
+python scripts/hysplit/run_backward_manifest_row.py \
+  --manifest hysplit/runs/backward_24h/manifest.csv \
+  --row-index "$SLURM_ARRAY_TASK_ID"
+```
+
+The exact array size should be generated from the manifest row count, not hard-coded.
 
 ## Windows Support Notes
 
@@ -367,32 +564,61 @@ cd ~/Documents/project/moss_landing_fire
 
 Planned next step for larger compute:
 
-- split sweeps into manifest-driven shards
-- run shards as cluster array jobs
-- merge shard manifests afterward
-- score and rank in a separate postprocessing step
+- stage the repository, Python 3.12 environment, HYSPLIT install tree, and HRRR files on Perlmutter scratch
+- run a small Slurm smoke test under account `m4007`
+- split HYSPLIT workflows into manifest-driven one-row tasks
+- run those tasks as Slurm arrays
+- merge task manifests afterward
+- score and rank in separate postprocessing jobs
 
 The project is ready for this refactor conceptually, but the cluster tooling has not been written yet.
 
+Recommended order:
+
+1. create/stage `/pscratch/sd/m/mthallet/moss-landing-fire`
+2. set up `$SCRATCH/conda-envs/moss-py312`
+3. transfer HYSPLIT install tree from the laptop
+4. transfer HRRR files via Globus or `rsync -avP` to `dtn.nersc.gov`
+5. verify HRRR file sizes/checksums on Perlmutter
+6. run `nersc/smoke.slurm`
+7. implement backward-trajectory manifest builder and row runner
+8. run a tiny array such as 4 tasks
+9. scale to the full 24-hour primary-event pilot
+10. extend the same manifest pattern to forward dispersion sweeps
+
 ## Recommended Next Steps
 
-1. Add Git hygiene before publishing:
-   - `.gitignore`
-   - exclude secrets
-   - exclude large transient outputs if desired
-2. Make the sweep runner cluster-friendly:
+1. Stage the project on NERSC scratch:
+   - clone repo to `/pscratch/sd/m/mthallet/moss-landing-fire`
+   - create Python 3.12 env
+   - install `uv`
+   - run `uv sync`
+2. Transfer local-only runtime inputs:
+   - HYSPLIT install tree
+   - HRRR files
+   - verify file sizes/checksums
+3. Add NERSC/Slurm helper files:
+   - `nersc/env.sh`
+   - `nersc/smoke.slurm`
+   - first backward array job template
+4. Make the sweep runner cluster-friendly:
    - manifest builder
-   - shard runner
+   - row runner
    - merge/scoring driver
-3. Expand the source-term matrix:
+5. Run a small Slurm array smoke test:
+   - 4 backward trajectory tasks
+   - one height
+   - one duration
+   - confirm `tdump` files contain trajectory rows
+6. Expand the source-term matrix:
    - footprint size
    - release duration
    - temporal emission profile
    - source rotation
-4. Improve PurpleAir QA:
+7. Improve PurpleAir QA:
    - reusable blacklist file
    - stronger outlier logic
-5. Keep building side-by-side visual comparison products for report/presentation use
+8. Keep building side-by-side visual comparison products for report/presentation use
 
 ## Bottom Line
 
