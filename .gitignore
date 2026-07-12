@@ -13,6 +13,12 @@ purple_air_api.txt
 hrrr/
 hysplit/install/
 hysplit/runs/
+# Registered NOAA HYSPLIT distributions/executables must never enter Git.
+hysplit*.tar.gz
+hysplit*.tgz
+hysplit*.zip
+hycs_std
+hyts_std
 data/Air_District_WFL1_-841210503623017823.geojson
 
 figures/
