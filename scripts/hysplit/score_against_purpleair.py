@@ -33,7 +33,9 @@ DEFAULT_MANIFEST = (
     / "krige_compare_scw_h10_25_50_manifest.csv"
 )
 
-HYSPLITDATA_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64" / "python" / "hysplitdata"
+DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
+HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
+HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
 if str(HYSPLITDATA_ROOT) not in sys.path:
     sys.path.insert(0, str(HYSPLITDATA_ROOT))
 import hysplitdata  # noqa: E402
@@ -72,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ylim", default=DEFAULT_YLIM)
     parser.add_argument(
         "--scenario-columns",
-        default="source_height_m,source_geometry,source_footprint_m,source_grid_shape,source_rotation_deg,emission_rate",
+        default="source_height_m,source_geometry,source_footprint_m,source_grid_shape,source_rotation_deg,emission_hours,emission_rate",
         help="Comma-separated manifest columns used to group windows into scenarios.",
     )
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -218,12 +220,60 @@ def enhancement_to_class(values: np.ndarray) -> np.ndarray:
     return out
 
 
-def load_hysplit_conc(cdump_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def as_utc_timestamp(value: object) -> pd.Timestamp:
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize("UTC")
+    return timestamp.tz_convert("UTC")
+
+
+def select_time_index(
+    cdump: object,
+    sample_start_utc: object | None = None,
+    sample_stop_utc: object | None = None,
+) -> int:
+    periods: dict[int, tuple[pd.Timestamp, pd.Timestamp]] = {}
+    for grid in cdump.grids:
+        if grid.time_index not in periods:
+            periods[grid.time_index] = (
+                as_utc_timestamp(grid.starting_datetime),
+                as_utc_timestamp(grid.ending_datetime),
+            )
+    if not periods:
+        raise ValueError("No concentration periods found in cdump")
+
+    if sample_start_utc is None and sample_stop_utc is None:
+        return max(periods)
+    if sample_start_utc is None or sample_stop_utc is None:
+        raise ValueError("Both sample_start_utc and sample_stop_utc are required for period selection")
+
+    target_start = as_utc_timestamp(sample_start_utc)
+    target_stop = as_utc_timestamp(sample_stop_utc)
+    for time_index, (period_start, period_stop) in periods.items():
+        if period_start == target_start and period_stop == target_stop:
+            return time_index
+
+    available = ", ".join(
+        f"{start.isoformat()} to {stop.isoformat()}"
+        for _, (start, stop) in sorted(periods.items())
+    )
+    raise ValueError(
+        "No HYSPLIT concentration period exactly matched "
+        f"{target_start.isoformat()} to {target_stop.isoformat()}. "
+        f"Available periods: {available}"
+    )
+
+
+def load_hysplit_conc(
+    cdump_path: Path,
+    sample_start_utc: object | None = None,
+    sample_stop_utc: object | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     cdump = hysplitdata.read_cdump(str(cdump_path))
-    time_indices = sorted({grid.time_index for grid in cdump.grids})
-    if not time_indices:
-        raise ValueError(f"No grids found in cdump: {cdump_path}")
-    time_index = time_indices[-1]
+    try:
+        time_index = select_time_index(cdump, sample_start_utc, sample_stop_utc)
+    except ValueError as exc:
+        raise ValueError(f"{exc}: {cdump_path}") from exc
     pollutant = cdump.pollutants[0]
     level = next(grid.vert_level for grid in cdump.grids if grid.time_index == time_index and grid.pollutant == pollutant)
     grids = [grid for grid in cdump.grids if grid.time_index == time_index and grid.pollutant == pollutant and grid.vert_level == level]
@@ -324,18 +374,67 @@ def distance_score(
     return score, mean_distance
 
 
-def build_window_lookup(df: pd.DataFrame) -> dict[tuple[str, str], int]:
+def build_window_lookup(df: pd.DataFrame) -> dict[tuple[pd.Timestamp, pd.Timestamp], int]:
     lookup: dict[tuple[pd.Timestamp, pd.Timestamp], int] = {}
     for row in df[["window_index", "window_start_utc", "window_stop_utc"]].drop_duplicates().itertuples(index=False):
-        start_key = pd.Timestamp(row.window_start_utc, tz="UTC")
-        stop_key = pd.Timestamp(row.window_stop_utc, tz="UTC")
+        start_key = as_utc_timestamp(row.window_start_utc)
+        stop_key = as_utc_timestamp(row.window_stop_utc)
         lookup[(start_key, stop_key)] = int(row.window_index)
     return lookup
+
+
+def build_window_interval_lookup(df: pd.DataFrame) -> dict[int, tuple[pd.Timestamp, pd.Timestamp]]:
+    lookup: dict[int, tuple[pd.Timestamp, pd.Timestamp]] = {}
+    for row in df[["window_index", "window_start_utc", "window_stop_utc"]].drop_duplicates().itertuples(index=False):
+        window_index = int(row.window_index)
+        interval = (
+            as_utc_timestamp(row.window_start_utc),
+            as_utc_timestamp(row.window_stop_utc),
+        )
+        previous = lookup.get(window_index)
+        if previous is not None and previous != interval:
+            raise ValueError(f"PurpleAir window {window_index} has inconsistent timestamps")
+        lookup[window_index] = interval
+    return lookup
+
+
+def manifest_window_indices(
+    row: pd.Series,
+    window_lookup: dict[tuple[pd.Timestamp, pd.Timestamp], int],
+) -> list[int]:
+    for field in ("logical_window_indices", "window_indices"):
+        raw = row.get(field)
+        if raw is not None and not pd.isna(raw) and str(raw).strip():
+            values = [int(piece.strip()) for piece in str(raw).split(",") if piece.strip()]
+            if values:
+                return values
+
+    start_key = as_utc_timestamp(row["sample_start_utc"])
+    stop_key = as_utc_timestamp(row["sample_stop_utc"])
+    window_index = window_lookup.get((start_key, stop_key))
+    return [] if window_index is None else [window_index]
 
 
 def scenario_key(row: pd.Series, scenario_columns: list[str]) -> str:
     parts = [f"{column}={row[column]}" for column in scenario_columns]
     return "|".join(parts)
+
+
+def prepare_manifest_for_scoring(manifest: pd.DataFrame) -> pd.DataFrame:
+    """Normalize legacy/local and prefixed NERSC merged-manifest columns."""
+    prepared = manifest.copy()
+    status_column = "status" if "status" in prepared.columns else "row_status"
+    if status_column not in prepared.columns:
+        raise ValueError("Manifest needs a status or row_status column")
+    prepared = prepared.loc[prepared[status_column] == "completed"].copy()
+    if "run_dir" not in prepared.columns:
+        for candidate in ("row_run_dir", "expected_run_dir"):
+            if candidate in prepared.columns:
+                prepared["run_dir"] = prepared[candidate]
+                break
+    if "run_dir" not in prepared.columns:
+        raise ValueError("Manifest needs run_dir, row_run_dir, or expected_run_dir")
+    return prepared
 
 
 def main() -> None:
@@ -346,8 +445,7 @@ def main() -> None:
     excluded_sensors = parse_sensor_exclusions(args.exclude_sensor)
     scenario_columns = parse_scenario_columns(args.scenario_columns)
 
-    manifest = pd.read_csv(args.manifest)
-    manifest = manifest.loc[manifest["status"] == "completed"].copy()
+    manifest = prepare_manifest_for_scoring(pd.read_csv(args.manifest))
     if manifest.empty:
         raise ValueError(f"No completed runs found in {args.manifest}")
     purpleair = pd.read_csv(args.purpleair_csv)
@@ -358,6 +456,7 @@ def main() -> None:
         (lat_grid >= ylim[0]) & (lat_grid <= ylim[1])
     )
     window_lookup = build_window_lookup(purpleair)
+    window_intervals = build_window_interval_lookup(purpleair)
 
     purpleair_windows: dict[int, dict[str, object]] = {}
     for window_index in rows:
@@ -385,91 +484,108 @@ def main() -> None:
     records: list[dict[str, object]] = []
     skipped_runs: list[dict[str, object]] = []
     for _, row in manifest.iterrows():
-        start_key = pd.Timestamp(row["sample_start_utc"], tz="UTC")
-        stop_key = pd.Timestamp(row["sample_stop_utc"], tz="UTC")
-        window_index = window_lookup.get((start_key, stop_key))
-        if window_index not in purpleair_windows:
-            continue
-
-        window_data = purpleair_windows[window_index]
-        frame = window_data["frame"]
-        valid_mask = window_data["valid_mask"] & grid_view
-
+        selected_windows = manifest_window_indices(row, window_lookup)
         cdump_path = Path(row["run_dir"]) / "cdump"
-        try:
-            h_lons, h_lats, h_conc = load_hysplit_conc(cdump_path)
-        except Exception as exc:
-            skipped_runs.append(
+        for window_index in selected_windows:
+            if window_index not in purpleair_windows:
+                continue
+            if window_index not in window_intervals:
+                skipped_runs.append(
+                    {
+                        "run_tag": row.get("run_tag"),
+                        "scenario_id": scenario_key(row, scenario_columns),
+                        "window_index": window_index,
+                        "run_dir": row.get("run_dir"),
+                        "reason": f"PurpleAir window {window_index} has no unique timestamp interval",
+                    }
+                )
+                continue
+
+            sample_start_utc, sample_stop_utc = window_intervals[window_index]
+            window_data = purpleair_windows[window_index]
+            frame = window_data["frame"]
+            valid_mask = window_data["valid_mask"] & grid_view
+
+            try:
+                h_lons, h_lats, h_conc = load_hysplit_conc(
+                    cdump_path,
+                    sample_start_utc=sample_start_utc,
+                    sample_stop_utc=sample_stop_utc,
+                )
+            except Exception as exc:
+                skipped_runs.append(
+                    {
+                        "run_tag": row.get("run_tag"),
+                        "scenario_id": scenario_key(row, scenario_columns),
+                        "window_index": window_index,
+                        "run_dir": row.get("run_dir"),
+                        "reason": str(exc),
+                    }
+                )
+                continue
+            h_grid = interpolate_field_to_points(h_lons, h_lats, h_conc, lon_grid, lat_grid)
+            h_grid = np.where(valid_mask, h_grid, np.nan)
+            h_class, quantiles = hysplit_to_relative_class(h_grid, valid_mask)
+            h_hit_grid = (h_class >= args.hysplit_binary_class) & valid_mask
+
+            sensor_values = interpolate_field_to_points(
+                h_lons,
+                h_lats,
+                h_conc,
+                frame["longitude"].to_numpy(),
+                frame["latitude"].to_numpy(),
+            )
+            sensor_class = np.zeros(sensor_values.shape, dtype=int)
+            positive_sensor = sensor_values > 0
+            sensor_class[positive_sensor] = 1
+            sensor_class[sensor_values >= quantiles[0]] = 2
+            sensor_class[sensor_values >= quantiles[1]] = 3
+            sensor_class[sensor_values >= quantiles[2]] = 4
+            sensor_hit = sensor_class >= args.hysplit_binary_class
+
+            purple_sensor_hit = window_data["sensor_hit"]
+            tp, fn, fp, tn = confusion_counts(purple_sensor_hit, sensor_hit)
+            sensor_f1 = f1_score(tp, fn, fp)
+
+            purple_hit_grid = window_data["hit_grid"] & valid_mask
+            grid_iou = iou_score(purple_hit_grid, h_hit_grid)
+            class_score = class_agreement_score(window_data["class"], h_class)
+            dist_score, mean_distance_km = distance_score(
+                frame["longitude"].to_numpy(),
+                frame["latitude"].to_numpy(),
+                purple_sensor_hit,
+                lon_grid,
+                lat_grid,
+                h_hit_grid,
+                max_distance_km=max(args.distance_mask_km, 1.0),
+            )
+            total_score = 0.40 * sensor_f1 + 0.30 * grid_iou + 0.20 * class_score + 0.10 * dist_score
+
+            record = row.to_dict()
+            record.update(
                 {
-                    "run_tag": row.get("run_tag"),
-                    "scenario_id": scenario_key(row, scenario_columns),
+                    "sample_start_utc": sample_start_utc.isoformat(),
+                    "sample_stop_utc": sample_stop_utc.isoformat(),
                     "window_index": window_index,
-                    "run_dir": row.get("run_dir"),
-                    "reason": str(exc),
+                    "scenario_id": scenario_key(row, scenario_columns),
+                    "sensor_tp": tp,
+                    "sensor_fn": fn,
+                    "sensor_fp": fp,
+                    "sensor_tn": tn,
+                    "sensor_f1": sensor_f1,
+                    "grid_iou": grid_iou,
+                    "class_score": class_score,
+                    "distance_score": dist_score,
+                    "mean_distance_km": mean_distance_km,
+                    "hysplit_q40": float(quantiles[0]),
+                    "hysplit_q70": float(quantiles[1]),
+                    "hysplit_q88": float(quantiles[2]),
+                    "hysplit_q97": float(quantiles[3]),
+                    "grid_kept_fraction": float(np.mean(valid_mask)),
+                    "total_score": total_score,
                 }
             )
-            continue
-        h_grid = interpolate_field_to_points(h_lons, h_lats, h_conc, lon_grid, lat_grid)
-        h_grid = np.where(valid_mask, h_grid, np.nan)
-        h_class, quantiles = hysplit_to_relative_class(h_grid, valid_mask)
-        h_hit_grid = (h_class >= args.hysplit_binary_class) & valid_mask
-
-        sensor_values = interpolate_field_to_points(
-            h_lons,
-            h_lats,
-            h_conc,
-            frame["longitude"].to_numpy(),
-            frame["latitude"].to_numpy(),
-        )
-        sensor_class = np.zeros(sensor_values.shape, dtype=int)
-        positive_sensor = sensor_values > 0
-        sensor_class[positive_sensor] = 1
-        sensor_class[sensor_values >= quantiles[0]] = 2
-        sensor_class[sensor_values >= quantiles[1]] = 3
-        sensor_class[sensor_values >= quantiles[2]] = 4
-        sensor_hit = sensor_class >= args.hysplit_binary_class
-
-        purple_sensor_hit = window_data["sensor_hit"]
-        tp, fn, fp, tn = confusion_counts(purple_sensor_hit, sensor_hit)
-        sensor_f1 = f1_score(tp, fn, fp)
-
-        purple_hit_grid = window_data["hit_grid"] & valid_mask
-        grid_iou = iou_score(purple_hit_grid, h_hit_grid)
-        class_score = class_agreement_score(window_data["class"], h_class)
-        dist_score, mean_distance_km = distance_score(
-            frame["longitude"].to_numpy(),
-            frame["latitude"].to_numpy(),
-            purple_sensor_hit,
-            lon_grid,
-            lat_grid,
-            h_hit_grid,
-            max_distance_km=max(args.distance_mask_km, 1.0),
-        )
-        total_score = 0.40 * sensor_f1 + 0.30 * grid_iou + 0.20 * class_score + 0.10 * dist_score
-
-        record = row.to_dict()
-        record.update(
-            {
-                "window_index": window_index,
-                "scenario_id": scenario_key(row, scenario_columns),
-                "sensor_tp": tp,
-                "sensor_fn": fn,
-                "sensor_fp": fp,
-                "sensor_tn": tn,
-                "sensor_f1": sensor_f1,
-                "grid_iou": grid_iou,
-                "class_score": class_score,
-                "distance_score": dist_score,
-                "mean_distance_km": mean_distance_km,
-                "hysplit_q40": float(quantiles[0]),
-                "hysplit_q70": float(quantiles[1]),
-                "hysplit_q88": float(quantiles[2]),
-                "hysplit_q97": float(quantiles[3]),
-                "grid_kept_fraction": float(np.mean(valid_mask)),
-                "total_score": total_score,
-            }
-        )
-        records.append(record)
+            records.append(record)
 
     if not records:
         raise ValueError("No manifest rows matched the requested PurpleAir windows.")

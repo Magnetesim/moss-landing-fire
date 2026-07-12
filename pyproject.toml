@@ -2,7 +2,7 @@
 name = "moss-landing-fire"
 version = "0.1.0"
 description = "PM2.5 plume visualization for the Moss Landing battery fire"
-readme = "docs/moss_landing_plume_handoff.md"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "contextily>=1.6",

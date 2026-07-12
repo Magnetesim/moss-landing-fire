@@ -42,7 +42,9 @@ DEFAULT_PURPLEAIR_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
 DEFAULT_BOUNDARY = DATA_DIR / "monterey_bay_unified_apcd.geojson"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "figures" / "visualization" / "phase1_gallery"
 
-HYSPLITDATA_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64" / "python" / "hysplitdata"
+DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
+HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
+HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
 if str(HYSPLITDATA_ROOT) not in sys.path:
     sys.path.insert(0, str(HYSPLITDATA_ROOT))
 import hysplitdata  # noqa: E402
@@ -245,12 +247,42 @@ def enhancement_to_class(values: np.ndarray) -> np.ndarray:
     return out
 
 
-def load_hysplit_conc(cdump_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def as_utc_timestamp(value: object) -> pd.Timestamp:
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize("UTC")
+    return timestamp.tz_convert("UTC")
+
+
+def load_hysplit_conc(
+    cdump_path: Path,
+    sample_start_utc: object,
+    sample_stop_utc: object,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     cdump = hysplitdata.read_cdump(str(cdump_path))
-    time_indices = sorted({grid.time_index for grid in cdump.grids})
-    if not time_indices:
-        raise ValueError(f"No grids found in cdump: {cdump_path}")
-    time_index = time_indices[-1]
+    target_start = as_utc_timestamp(sample_start_utc)
+    target_stop = as_utc_timestamp(sample_stop_utc)
+    matching_indices = sorted(
+        {
+            grid.time_index
+            for grid in cdump.grids
+            if as_utc_timestamp(grid.starting_datetime) == target_start
+            and as_utc_timestamp(grid.ending_datetime) == target_stop
+        }
+    )
+    if not matching_indices:
+        available = sorted(
+            {
+                (as_utc_timestamp(grid.starting_datetime), as_utc_timestamp(grid.ending_datetime))
+                for grid in cdump.grids
+            }
+        )
+        available_text = ", ".join(f"{start.isoformat()} to {stop.isoformat()}" for start, stop in available)
+        raise ValueError(
+            f"No grid in {cdump_path} matched {target_start.isoformat()} to {target_stop.isoformat()}. "
+            f"Available periods: {available_text}"
+        )
+    time_index = matching_indices[0]
     pollutant = cdump.pollutants[0]
     level = next(grid.vert_level for grid in cdump.grids if grid.time_index == time_index and grid.pollutant == pollutant)
     grids = [grid for grid in cdump.grids if grid.time_index == time_index and grid.pollutant == pollutant and grid.vert_level == level]
@@ -453,7 +485,11 @@ def render_sheet(
         valid_mask = window_data["valid_mask"]
 
         cdump_path = Path(run["run_dir"]) / "cdump"
-        h_lons, h_lats, h_conc = load_hysplit_conc(cdump_path)
+        h_lons, h_lats, h_conc = load_hysplit_conc(
+            cdump_path,
+            sample_start_utc=run["sample_start_utc"],
+            sample_stop_utc=run["sample_stop_utc"],
+        )
         h_grid = interpolate_field_to_points(h_lons, h_lats, h_conc, lon_grid, lat_grid)
         h_grid = np.where(valid_mask, h_grid, np.nan)
         h_class, h_quantiles = hysplit_to_relative_class(h_grid, valid_mask)

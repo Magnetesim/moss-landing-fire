@@ -29,7 +29,9 @@ except ImportError:
     xyz = None
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-HYSPLITDATA_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64" / "python" / "hysplitdata"
+DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
+HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
+HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
 
 if str(HYSPLITDATA_ROOT) not in sys.path:
     sys.path.insert(0, str(HYSPLITDATA_ROOT))

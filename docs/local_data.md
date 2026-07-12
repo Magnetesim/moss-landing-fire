@@ -75,7 +75,7 @@ Download command for the full set:
 
 ### Minimum Forward-Sweep Set
 
-For the current phase-1 forward comparisons from ignition through the Jan 18 06Z window, the smaller required set is:
+For the current phase-1 forward comparisons, window 10 ends at `2025-01-18T19:00:00Z`. The required set therefore runs from the ignition block through the Jan 18 18-23Z block:
 
 ```text
 20250116_18-23_hrrr
@@ -85,6 +85,8 @@ For the current phase-1 forward comparisons from ignition through the Jan 18 06Z
 20250117_18-23_hrrr
 20250118_00-05_hrrr
 20250118_06-11_hrrr
+20250118_12-17_hrrr
+20250118_18-23_hrrr
 ```
 
 Download command for that smaller set:
@@ -92,8 +94,10 @@ Download command for that smaller set:
 ```bash
 ./.venv/bin/python scripts/hysplit/download_hrrr.py \
   --start-utc 2025-01-16T23:00:00Z \
-  --end-utc 2025-01-18T06:00:00Z
+  --end-utc 2025-01-18T19:00:00Z
 ```
+
+The earlier minimum-set note stopped at Jan 18 06Z and was insufficient for the configured window indices `1,4,7,10`.
 
 Use `--dry-run` to print the exact file list without downloading:
 

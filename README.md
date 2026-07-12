@@ -14,7 +14,7 @@ This is not a polished package. It is a working research repo with reproducible 
 - `scripts/hysplit/` forward dispersion, custom `cdump` rendering, sweeps, and scoring
 - `data/purple_air/` local PurpleAir datasets and district boundary data
 - `figures/visualization/` generated maps, animations, comparison sheets, and galleries
-- `docs/` handoff notes, references, and status docs
+- `docs/` canonical project status, local-data setup, and source references
 - `report/` LaTeX progress report
 
 ## Environment
@@ -54,6 +54,34 @@ Run the default scored HYSPLIT phase-1 sweep:
 ```bash
 ./.venv/bin/python scripts/hysplit/run_phase1_sweep.py --jobs 16 --score
 ```
+
+The default `combined` execution shape runs each source scenario once and writes successive 4-hour concentration periods for scoring. Use `--execution-shape separate` to reproduce the legacy one-HYSPLIT-execution-per-window workflow for validation.
+
+## Perlmutter / NERSC
+
+The cluster workflow uses one deterministic manifest row per physical HYSPLIT execution, with a unique output root and atomic per-row status file. This avoids shared-run-directory races and makes incomplete campaigns resumable.
+
+After staging the repository, static HYSPLIT bundle, and required HRRR blocks under `$SCRATCH/moss-landing-fire`, bootstrap the Python 3.12 environment once:
+
+```bash
+bash nersc/bootstrap_env.sh
+```
+
+Build the default 96-physical-run combined phase-1 manifest and submit a packed CPU-node job:
+
+```bash
+source nersc/env.sh
+"$MOSS_PYTHON" scripts/hysplit/build_forward_manifest.py \
+  --manifest "$MOSS_MANIFEST_DIR/phase1.csv" \
+  --runs-root "$MOSS_RUN_ROOT/phase1" \
+  --hrrr-dir "$HRRR_DIR" \
+  --hysplit-root "$HYSPLIT_ROOT"
+
+MANIFEST="$MOSS_MANIFEST_DIR/phase1.csv" MOSS_JOBS=8 \
+  sbatch nersc/run_forward_packed.slurm
+```
+
+Use `nersc/run_forward_chunks.slurm` when one node is not enough. Benchmark safe values of `MOSS_JOBS` with representative rows before a full campaign; the score is sensitive to particle count and stochastic variation.
 
 Build the top-scenario comparison gallery:
 

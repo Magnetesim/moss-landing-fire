@@ -21,6 +21,7 @@ DEFAULT_SOURCE_HEIGHTS_M = "10,25,50,100,150,250"
 DEFAULT_RELEASE_DURATIONS_H = "4,8,12,24"
 DEFAULT_WINDOW_INDICES = "1,4,7,10"
 DEFAULT_RUN_TAG_PREFIX = "phase1_matrix"
+DEFAULT_EXECUTION_SHAPE = "combined"
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,6 +40,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--window-indices", default=DEFAULT_WINDOW_INDICES)
+    parser.add_argument(
+        "--execution-shape",
+        choices=("combined", "separate", "cumulative"),
+        default=DEFAULT_EXECUTION_SHAPE,
+        help=(
+            "Run each source scenario once with multiple sampling periods (combined, default), "
+            "preserve the legacy one-execution-per-window behavior (separate), or keep the "
+            "first sampling start while stopping at each target window (cumulative)."
+        ),
+    )
     parser.add_argument("--window-hours", type=float, default=4.0)
     parser.add_argument("--window-step-hours", type=float, default=4.0)
     parser.add_argument("--source-lat", type=float, default=36.8044)
@@ -52,6 +63,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grid-span-deg", default="1.40,1.20")
     parser.add_argument("--numpar", type=int, default=500)
     parser.add_argument("--maxpar", type=int, default=50000)
+    parser.add_argument("--krand", type=int, default=2)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--plot-styles", default="county,dynamic_exp,dynamic_lin")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--dry-run", action="store_true")
@@ -153,18 +166,26 @@ def run_case(
     forward_script: Path,
     output_root: Path,
     ignition_utc: pd.Timestamp,
-    sample_start_utc: pd.Timestamp,
-    sample_stop_utc: pd.Timestamp,
+    sample_windows: list[tuple[int, pd.Timestamp, pd.Timestamp]],
     release_end_utc: pd.Timestamp,
     source_height_m: float,
     scenario_tag: str,
-    window_index: int,
     setup: dict[str, str],
     args: argparse.Namespace,
 ) -> dict[str, object]:
+    if not sample_windows:
+        raise ValueError("run_case requires at least one sample window")
+
+    sample_start_utc = min(window[1] for window in sample_windows)
+    sample_stop_utc = max(window[2] for window in sample_windows)
+    window_indices = [window[0] for window in sample_windows]
+    if len(window_indices) == 1:
+        window_token = f"w{window_indices[0]:02d}"
+    else:
+        window_token = f"multiw{window_indices[0]:02d}-{window_indices[-1]:02d}"
     run_tag = (
         f"{args.run_tag_prefix}_{scenario_tag}"
-        f"_w{window_index:02d}"
+        f"_{window_token}"
         f"_{sample_start_utc:%Y%m%d%H}to{sample_stop_utc:%Y%m%d%H}"
     )
     emission_hours = (release_end_utc - ignition_utc).total_seconds() / 3600.0
@@ -215,6 +236,10 @@ def run_case(
         str(args.numpar),
         "--maxpar",
         str(args.maxpar),
+        "--krand",
+        str(args.krand),
+        "--seed",
+        str(args.seed),
         "--plot-styles",
         args.plot_styles,
         "--output-root",
@@ -247,7 +272,9 @@ def run_case(
 
     return {
         "scenario_tag": scenario_tag,
-        "window_index": window_index,
+        "execution_shape": args.execution_shape,
+        "window_indices": ",".join(str(value) for value in window_indices),
+        "window_count": len(window_indices),
         "run_tag": run_tag,
         "ignition_utc": ignition_utc.isoformat(),
         "simulation_end_utc": sample_stop_utc.isoformat(),
@@ -269,6 +296,52 @@ def run_case(
     }
 
 
+def build_jobs(
+    ignition_utc: pd.Timestamp,
+    source_heights: list[float],
+    release_durations_h: list[float],
+    source_setups: list[dict[str, str]],
+    windows: list[tuple[int, pd.Timestamp, pd.Timestamp]],
+    execution_shape: str,
+) -> list[dict[str, object]]:
+    if execution_shape not in {"combined", "separate", "cumulative"}:
+        raise ValueError(f"Unsupported execution shape: {execution_shape}")
+    if not windows:
+        raise ValueError("At least one sample window is required")
+
+    jobs: list[dict[str, object]] = []
+    for height in source_heights:
+        for duration_h in release_durations_h:
+            release_end_utc = ignition_utc + pd.to_timedelta(duration_h, unit="h")
+            for setup in source_setups:
+                scenario_tag = build_scenario_tag(
+                    source_height_m=height,
+                    release_duration_h=duration_h,
+                    source_geometry=setup["source_geometry"],
+                    source_footprint_m=setup["source_footprint_m"],
+                    source_grid_shape=setup["source_grid_shape"],
+                )
+                if execution_shape == "combined":
+                    window_groups = [windows]
+                elif execution_shape == "separate":
+                    window_groups = [[window] for window in windows]
+                else:
+                    first_start = windows[0][1]
+                    window_groups = [[(window[0], first_start, window[2])] for window in windows]
+                for sample_windows in window_groups:
+                    jobs.append(
+                        {
+                            "height": height,
+                            "duration_h": duration_h,
+                            "release_end_utc": release_end_utc,
+                            "setup": setup,
+                            "scenario_tag": scenario_tag,
+                            "sample_windows": sample_windows,
+                        }
+                    )
+    return jobs
+
+
 def main() -> None:
     args = parse_args()
     if args.jobs < 1:
@@ -286,31 +359,14 @@ def main() -> None:
     windows = build_sample_windows(ignition_utc, window_indices, args.window_hours, args.window_step_hours)
 
     args.output_root.mkdir(parents=True, exist_ok=True)
-    jobs = []
-    for height in source_heights:
-        for duration_h in release_durations_h:
-            release_end_utc = ignition_utc + pd.to_timedelta(duration_h, unit="h")
-            for setup in source_setups:
-                scenario_tag = build_scenario_tag(
-                    source_height_m=height,
-                    release_duration_h=duration_h,
-                    source_geometry=setup["source_geometry"],
-                    source_footprint_m=setup["source_footprint_m"],
-                    source_grid_shape=setup["source_grid_shape"],
-                )
-                for window_index, sample_start_utc, sample_stop_utc in windows:
-                    jobs.append(
-                        {
-                            "height": height,
-                            "duration_h": duration_h,
-                            "release_end_utc": release_end_utc,
-                            "setup": setup,
-                            "scenario_tag": scenario_tag,
-                            "window_index": window_index,
-                            "sample_start_utc": sample_start_utc,
-                            "sample_stop_utc": sample_stop_utc,
-                        }
-                    )
+    jobs = build_jobs(
+        ignition_utc=ignition_utc,
+        source_heights=source_heights,
+        release_durations_h=release_durations_h,
+        source_setups=source_setups,
+        windows=windows,
+        execution_shape=args.execution_shape,
+    )
 
     results: list[dict[str, object]] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as executor:
@@ -321,12 +377,10 @@ def main() -> None:
                 args.forward_script,
                 args.output_root,
                 ignition_utc,
-                job["sample_start_utc"],
-                job["sample_stop_utc"],
+                job["sample_windows"],
                 job["release_end_utc"],
                 job["height"],
                 job["scenario_tag"],
-                job["window_index"],
                 job["setup"],
                 args,
             )
@@ -336,13 +390,15 @@ def main() -> None:
             results.append(future.result())
 
     manifest = pd.DataFrame(results).sort_values(
-        ["scenario_tag", "window_index", "source_height_m"]
+        ["scenario_tag", "source_height_m", "sample_start_utc"]
     ).reset_index(drop=True)
     manifest_path = args.output_root / f"{args.run_tag_prefix}_manifest.csv"
     manifest.to_csv(manifest_path, index=False)
 
     print(f"Phase 1 scenarios: {len(source_heights) * len(release_durations_h) * len(source_setups)}")
-    print(f"Phase 1 runs: {len(jobs)}")
+    print(f"Execution shape: {args.execution_shape}")
+    print(f"Physical HYSPLIT runs: {len(jobs)}")
+    print(f"Logical window comparisons: {len(source_heights) * len(release_durations_h) * len(source_setups) * len(windows)}")
     print(f"Saved manifest: {manifest_path}")
     print(manifest['status'].value_counts(dropna=False).to_string())
 

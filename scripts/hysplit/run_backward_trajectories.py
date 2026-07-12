@@ -15,7 +15,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_EVENTS_PATH = PROJECT_ROOT / "data" / "purple_air" / "receptor_events.csv"
 DEFAULT_HRRR_DIR = PROJECT_ROOT / "hrrr"
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
+DEFAULT_HYSPLIT_ROOT = Path(
+    os.environ.get("HYSPLIT_ROOT", PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64")
+)
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "hysplit" / "runs" / "trajectory_runs"
 
 
