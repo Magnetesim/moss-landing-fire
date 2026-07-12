@@ -15,7 +15,9 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_HRRR_DIR = PROJECT_ROOT / "hrrr"
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
+DEFAULT_HYSPLIT_ROOT = Path(
+    os.environ.get("HYSPLIT_ROOT", PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64")
+)
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion"
 
 DEFAULT_START_UTC = "2025-01-18T02:00:00Z"  # 2025-01-17 18:00 PST
@@ -115,6 +117,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plot", action="store_true", help="Run concplot.py after the concentration model succeeds.")
     parser.add_argument("--numpar", type=int, default=500, help="Initial number of particles/puffs released by HYSPLIT.")
     parser.add_argument("--maxpar", type=int, default=50000, help="Maximum particle/puff count allowed by HYSPLIT.")
+    parser.add_argument(
+        "--krand",
+        type=int,
+        choices=(0, 1, 2, 3, 4, 10, 11, 12, 13),
+        default=0,
+        help="HYSPLIT turbulence random-number method. Use 2 for controlled particle-count comparisons.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="HYSPLIT SEED namelist value. Default 0 preserves HYSPLIT's standard fixed seed.",
+    )
     parser.add_argument(
         "--plot-styles",
         default="county,dynamic_exp,dynamic_lin",
@@ -353,7 +368,7 @@ def write_control(
     control_path.write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
-def write_setup_cfg(setup_path: Path, numpar: int, maxpar: int) -> None:
+def write_setup_cfg(setup_path: Path, numpar: int, maxpar: int, krand: int, seed: int) -> None:
     setup = "\n".join(
         [
             "&SETUP",
@@ -361,6 +376,8 @@ def write_setup_cfg(setup_path: Path, numpar: int, maxpar: int) -> None:
             "khmax = 9999,",
             f"numpar = {numpar},",
             f"maxpar = {maxpar},",
+            f"krand = {krand},",
+            f"seed = {seed},",
             "/",
         ]
     )
@@ -524,7 +541,13 @@ def main() -> None:
         sample_start_time=sample_start_time,
         sample_stop_time=sample_stop_time,
     )
-    write_setup_cfg(setup_path, numpar=args.numpar, maxpar=args.maxpar)
+    write_setup_cfg(
+        setup_path,
+        numpar=args.numpar,
+        maxpar=args.maxpar,
+        krand=args.krand,
+        seed=args.seed,
+    )
     plot_script_map = {
         "county": run_dir / "plot_county_thresholds.sh",
         "dynamic_exp": run_dir / "plot_dynamic_exponential.sh",
