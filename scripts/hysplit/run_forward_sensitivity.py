@@ -5,15 +5,16 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import itertools
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pandas as pd
 
+from moss_landing.constants import MOSS_LANDING_LAT, MOSS_LANDING_LON
+from moss_landing.fsutil import refresh_symlink
+from moss_landing.paths import PROJECT_ROOT
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FORWARD_SCRIPT = PROJECT_ROOT / "scripts" / "hysplit" / "run_forward_dispersion.py"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion" / "sweeps"
 DEFAULT_START_UTC = "2025-01-18T02:00:00Z"
@@ -62,8 +63,8 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Output averaging interval for each forward run.",
     )
-    parser.add_argument("--source-lat", type=float, default=36.8044)
-    parser.add_argument("--source-lon", type=float, default=-121.7883)
+    parser.add_argument("--source-lat", type=float, default=MOSS_LANDING_LAT)
+    parser.add_argument("--source-lon", type=float, default=MOSS_LANDING_LON)
     parser.add_argument(
         "--source-geometry",
         choices=("point", "area_grid"),
@@ -143,15 +144,6 @@ def build_geometry_suffix(source_geometry: str, source_grid_shape: str) -> str:
         return ""
     nx, ny = [piece.strip() for piece in source_grid_shape.split(",", maxsplit=1)]
     return f"_srcarea{nx}x{ny}"
-
-
-def refresh_symlink(link_path: Path, target: Path) -> None:
-    if link_path.exists() or link_path.is_symlink():
-        try:
-            link_path.unlink()
-        except FileNotFoundError:
-            pass
-    os.symlink(target, link_path, target_is_directory=target.is_dir())
 
 
 def update_latest_pointers(output_root: Path, manifest_path: Path, run_tag_prefix: str) -> None:

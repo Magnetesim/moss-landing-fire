@@ -5,11 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
-import sys
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+from moss_landing.paths import set_mpl_cache
+
+set_mpl_cache()
 
 import matplotlib
 matplotlib.use("Agg")
@@ -34,25 +34,23 @@ except ImportError:
     xyz = None
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
+from moss_landing.constants import (  # noqa: E402
+    ENHANCEMENT_BOUNDS as ENHANCEMENT_BOUNDS_LIST,
+    MOSS_LANDING_LAT,
+    MOSS_LANDING_LON,
+)
+from moss_landing.hysplit import import_hysplitdata  # noqa: E402
+from moss_landing.paths import DATA_DIR, FIGURES_DIR, PROJECT_ROOT  # noqa: E402
+
+hysplitdata = import_hysplitdata()
+
 DEFAULT_PER_RUN = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion" / "sweeps" / "scoring" / "phase1_matrix_20260622d_manifest_per_run_scores.csv"
 DEFAULT_PER_SCENARIO = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion" / "sweeps" / "scoring" / "phase1_matrix_20260622d_manifest_scenario_scores.csv"
 DEFAULT_PURPLEAIR_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
 DEFAULT_BOUNDARY = DATA_DIR / "monterey_bay_unified_apcd.geojson"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "figures" / "visualization" / "phase1_gallery"
+DEFAULT_OUTPUT_DIR = FIGURES_DIR / "phase1_gallery"
 
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
-HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
-HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
-if str(HYSPLITDATA_ROOT) not in sys.path:
-    sys.path.insert(0, str(HYSPLITDATA_ROOT))
-import hysplitdata  # noqa: E402
-
-
-MOSS_LANDING_LAT = 36.8044
-MOSS_LANDING_LON = -121.7883
-ENHANCEMENT_BOUNDS = np.array([0.0, 1.0, 5.0, 12.0, 35.0, 80.0], dtype=float)
+ENHANCEMENT_BOUNDS = np.array(ENHANCEMENT_BOUNDS_LIST, dtype=float)
 CLASS_COLORS = ["#2c7bb6", "#00a6ca", "#00cc66", "#f9d057", "#d7191c"]
 CLASS_LABELS = ["0-1", "1-5", "5-12", "12-35", "35+"]
 AGREEMENT_COLORS = ["#2166ac", "#67a9cf", "#f7f7f7", "#f4a582", "#b2182b"]

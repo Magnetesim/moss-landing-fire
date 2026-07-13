@@ -5,16 +5,14 @@ Does a lightweight query (just one field) on each sensor, keeps only active ones
 Run this before the full data pull to avoid wasting API calls on dead sensors.
 """
 
-import requests
-import pandas as pd
-import datetime
-import time
 import argparse
+import time
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
-API_KEY = (PROJECT_ROOT / "purple_air_api.txt").read_text(encoding="utf-8").strip()
+import pandas as pd
+
+from moss_landing.paths import DATA_DIR
+from moss_landing.purpleair import get_sensor_history, load_api_key
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,6 +29,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    api_key = load_api_key()
     start = int(pd.Timestamp(args.start_utc).timestamp())
     end = int(pd.Timestamp(args.end_utc).timestamp())
 
@@ -44,18 +43,14 @@ def main() -> None:
     for i, row in df.iterrows():
         sidx = int(row["sensor_index"])
         try:
-            r = requests.get(
-                f"https://api.purpleair.com/v1/sensors/{sidx}/history",
-                headers={"X-API-Key": API_KEY},
-                params={
-                    "start_timestamp": start,
-                    "end_timestamp": end,
-                    "average": 60,
-                    "fields": "pm2.5_atm"
-                },
-                timeout=15
+            data = get_sensor_history(
+                sidx,
+                api_key,
+                start_timestamp=start,
+                end_timestamp=end,
+                fields="pm2.5_atm",
+                timeout=15,
             )
-            data = r.json()
             n = len(data.get("data", []))
 
             if n > 0:

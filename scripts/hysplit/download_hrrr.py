@@ -10,9 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from moss_landing.paths import HRRR_DIR as DEFAULT_OUTPUT_DIR
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "hrrr"
 DEFAULT_HOST = "ftp.arl.noaa.gov"
 DEFAULT_REMOTE_DIR = "/pub/archives/hrrr"
 

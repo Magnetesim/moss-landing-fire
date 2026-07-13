@@ -8,12 +8,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from moss_landing.constants import FIRE_START_UTC_ISO as DEFAULT_FIRE_START_UTC
+from moss_landing.paths import DATA_DIR
 
-DEFAULT_PM25_PATH = PROJECT_ROOT / "data" / "purple_air" / "moss_landing_pm25.csv"
-DEFAULT_SENSORS_PATH = PROJECT_ROOT / "data" / "purple_air" / "sensors_active.csv"
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "data" / "purple_air" / "receptor_events.csv"
-DEFAULT_FIRE_START_UTC = "2025-01-17T01:35:00Z"
+DEFAULT_PM25_PATH = DATA_DIR / "moss_landing_pm25.csv"
+DEFAULT_SENSORS_PATH = DATA_DIR / "sensors_active.csv"
+DEFAULT_OUTPUT_PATH = DATA_DIR / "receptor_events.csv"
 
 
 def parse_args() -> argparse.Namespace:

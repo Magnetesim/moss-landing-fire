@@ -21,9 +21,13 @@ try:
 except ImportError:
     xyz = None
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
-FIGURES_DIR = PROJECT_ROOT / "figures" / "visualization"
+from moss_landing.constants import (
+    FIRE_START_LOCAL,
+    FIRE_START_UTC,
+    MOSS_LANDING_LAT,
+    MOSS_LANDING_LON,
+)
+from moss_landing.paths import DATA_DIR, FIGURES_DIR
 
 DATA_PATH = DATA_DIR / "moss_landing_pm25.csv"
 ENHANCEMENT_4H_PATH = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
@@ -32,11 +36,6 @@ HTML_OUT = FIGURES_DIR / "tier1_bubble_map.html"
 GIF_OUT = FIGURES_DIR / "tier1_bubble_map.gif"
 PNG_OUT = FIGURES_DIR / "tier1_bubble_map.png"
 FILTER_REPORT_OUT = FIGURES_DIR / "tier1_bubble_map_filtered_sensors.csv"
-
-MOSS_LANDING_LAT = 36.8044
-MOSS_LANDING_LON = -121.7883
-FIRE_START_LOCAL = pd.Timestamp("2025-01-16 17:35", tz="US/Pacific")
-FIRE_START_UTC = FIRE_START_LOCAL.tz_convert("UTC")
 
 AQI_ORDER = [
     "Good (0-12)",

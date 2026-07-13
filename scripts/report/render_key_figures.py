@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from moss_landing.paths import PROJECT_ROOT
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_DIR = PROJECT_ROOT / "report" / "images"
 DEFAULT_ENSEMBLE_MANIFEST = (
     PROJECT_ROOT

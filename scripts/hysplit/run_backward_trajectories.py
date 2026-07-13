@@ -7,17 +7,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-import os
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from moss_landing import paths
+from moss_landing.fsutil import ensure_bdyfiles_link
+from moss_landing.paths import DATA_DIR, HRRR_DIR as DEFAULT_HRRR_DIR, PROJECT_ROOT
 
-DEFAULT_EVENTS_PATH = PROJECT_ROOT / "data" / "purple_air" / "receptor_events.csv"
-DEFAULT_HRRR_DIR = PROJECT_ROOT / "hrrr"
-DEFAULT_HYSPLIT_ROOT = Path(
-    os.environ.get("HYSPLIT_ROOT", PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64")
-)
+DEFAULT_EVENTS_PATH = DATA_DIR / "receptor_events.csv"
+DEFAULT_HYSPLIT_ROOT = paths.hysplit_root()
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "hysplit" / "runs" / "trajectory_runs"
 
 
@@ -128,11 +126,7 @@ def load_events(events_csv: Path, time_column: str, primary_only: bool, sensor_l
 
 
 def ensure_batch_support_files(output_root: Path, hysplit_root: Path) -> None:
-    target = hysplit_root / "bdyfiles"
-    link_path = output_root / "bdyfiles"
-    if link_path.exists() or link_path.is_symlink():
-        return
-    os.symlink(target, link_path, target_is_directory=True)
+    ensure_bdyfiles_link(output_root, hysplit_root)
 
 
 def tdump_has_points(tdump_path: Path) -> bool:

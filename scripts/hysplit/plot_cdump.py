@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
-import sys
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+from moss_landing.paths import set_mpl_cache
+
+set_mpl_cache()
 
 import matplotlib
 matplotlib.use("Agg")
@@ -28,15 +28,9 @@ try:
 except ImportError:
     xyz = None
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
-HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
-HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
+from moss_landing.hysplit import import_hysplitdata  # noqa: E402
 
-if str(HYSPLITDATA_ROOT) not in sys.path:
-    sys.path.insert(0, str(HYSPLITDATA_ROOT))
-
-import hysplitdata  # noqa: E402
+hysplitdata = import_hysplitdata()
 
 
 def parse_args() -> argparse.Namespace:

@@ -6,35 +6,29 @@ Interactive HTML slider for kriged 4-hour PurpleAir enhancement windows.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from scripts.purple_air.animate_krige_enhancement import (
-    adjust_view_bounds,
-    krige_frame,
-    parse_range_arg,
-)
-from scripts.purple_air.krige_enhancement import (
-    DATA_DIR,
-    KRIGING_DIR,
+from moss_landing.constants import (
     ENHANCEMENT_BOUNDS,
     ENHANCEMENT_COLORS,
     FIRE_START_LOCAL,
     MOSS_LANDING_LAT,
     MOSS_LANDING_LON,
+)
+from moss_landing.kriging import (
+    adjust_view_bounds,
     build_grid,
+    krige_frame,
     load_boundary,
+    parse_range_arg,
     parse_sensor_exclusions,
     pick_window,
 )
+from moss_landing.paths import DATA_DIR, KRIGING_DIR
 
 
 DEFAULT_INPUT_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"

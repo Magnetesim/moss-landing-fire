@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+from moss_landing.paths import set_mpl_cache
+
+set_mpl_cache()
 
 import numpy as np
 import pandas as pd
@@ -20,8 +20,12 @@ from shapely.ops import unary_union
 from shapely.prepared import prep
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
+from moss_landing.constants import ENHANCEMENT_BOUNDS as ENHANCEMENT_BOUNDS_LIST  # noqa: E402
+from moss_landing.hysplit import import_hysplitdata  # noqa: E402
+from moss_landing.paths import DATA_DIR, PROJECT_ROOT  # noqa: E402
+
+hysplitdata = import_hysplitdata()
+
 DEFAULT_PURPLEAIR_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
 DEFAULT_BOUNDARY = DATA_DIR / "monterey_bay_unified_apcd.geojson"
 DEFAULT_MANIFEST = (
@@ -33,15 +37,7 @@ DEFAULT_MANIFEST = (
     / "krige_compare_scw_h10_25_50_manifest.csv"
 )
 
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
-HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
-HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
-if str(HYSPLITDATA_ROOT) not in sys.path:
-    sys.path.insert(0, str(HYSPLITDATA_ROOT))
-import hysplitdata  # noqa: E402
-
-
-ENHANCEMENT_BOUNDS = np.array([0.0, 1.0, 5.0, 12.0, 35.0, 80.0], dtype=float)
+ENHANCEMENT_BOUNDS = np.array(ENHANCEMENT_BOUNDS_LIST, dtype=float)
 DEFAULT_ROWS = "1,4,7,10"
 DEFAULT_XLIM = "-122.08,-121.67"
 DEFAULT_YLIM = "36.48,37.18"

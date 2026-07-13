@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import pandas as pd
 
+from moss_landing.paths import PROJECT_ROOT
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = (
     PROJECT_ROOT
     / "hysplit"

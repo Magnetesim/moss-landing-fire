@@ -7,13 +7,11 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import requests
 
+from moss_landing.paths import DATA_DIR, PROJECT_ROOT
+from moss_landing.purpleair import API_BASE_URL, DEFAULT_API_KEY_PATH, get_json, load_api_key
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
 DEFAULT_BOUNDARY_PATH = PROJECT_ROOT / "data" / "Air_District_WFL1_-841210503623017823.geojson"
-DEFAULT_API_KEY_PATH = PROJECT_ROOT / "purple_air_api.txt"
 
 
 def parse_args() -> argparse.Namespace:
@@ -152,20 +150,13 @@ def purpleair_bbox_query(api_key: str, bbox: tuple[float, float, float, float]) 
         "selng": max_lon,
         "selat": min_lat,
     }
-    response = requests.get(
-        "https://api.purpleair.com/v1/sensors",
-        headers={"X-API-Key": api_key},
-        params=params,
-        timeout=60,
-    )
-    response.raise_for_status()
-    payload = response.json()
+    payload = get_json(f"{API_BASE_URL}/sensors", api_key, params=params)
     return pd.DataFrame(payload["data"], columns=payload["fields"])
 
 
 def main() -> None:
     args = parse_args()
-    api_key = args.api_key_path.read_text(encoding="utf-8").strip()
+    api_key = load_api_key(args.api_key_path)
     collection = load_geojson(args.boundary_geojson)
     district_feature = extract_district_feature(collection, args.district_name)
     geometry = district_feature["geometry"]

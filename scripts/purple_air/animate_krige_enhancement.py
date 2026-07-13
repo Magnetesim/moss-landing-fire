@@ -6,7 +6,6 @@ Animate kriged 4-hour PurpleAir enhancement windows.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -15,29 +14,27 @@ import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from matplotlib.lines import Line2D
-from pykrige.ok import OrdinaryKriging
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from scripts.purple_air.krige_enhancement import (
-    DATA_DIR,
-    KRIGING_DIR,
+from moss_landing.constants import (
     ENHANCEMENT_BOUNDS,
     ENHANCEMENT_COLORS,
     ENHANCEMENT_LABELS,
     FIRE_START_LOCAL,
     MOSS_LANDING_LAT,
     MOSS_LANDING_LON,
+)
+from moss_landing.kriging import (
+    adjust_view_bounds,
     build_grid,
-    build_mask,
+    cx,
+    krige_frame,
     load_boundary,
+    parse_range_arg,
     parse_sensor_exclusions,
     pick_window,
     resolve_basemap_provider,
-    cx,
 )
+from moss_landing.paths import DATA_DIR, KRIGING_DIR
 
 
 DEFAULT_INPUT_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
@@ -102,90 +99,6 @@ def parse_args() -> argparse.Namespace:
         help="Optional lat range as min,max for a zoomed animation view.",
     )
     return parser.parse_args()
-
-
-def parse_range_arg(value: str | None, label: str) -> tuple[float, float] | None:
-    if value is None:
-        return None
-    parts = [item.strip() for item in value.split(",")]
-    if len(parts) != 2:
-        raise ValueError(f"{label} must be formatted as min,max")
-    low, high = (float(parts[0]), float(parts[1]))
-    if low >= high:
-        raise ValueError(f"{label} must have min < max")
-    return low, high
-
-
-def adjust_view_bounds(
-    xlim: tuple[float, float] | None,
-    ylim: tuple[float, float] | None,
-    fallback_bounds: tuple[float, float, float, float],
-    figure_size: tuple[float, float],
-) -> tuple[tuple[float, float], tuple[float, float]]:
-    min_lon, min_lat, max_lon, max_lat = fallback_bounds
-    x0, x1 = xlim if xlim is not None else (min_lon, max_lon)
-    y0, y1 = ylim if ylim is not None else (min_lat, max_lat)
-
-    center_lon = 0.5 * (x0 + x1)
-    center_lat = 0.5 * (y0 + y1)
-    lon_span = x1 - x0
-    lat_span = y1 - y0
-
-    # Preserve approximate local map geometry in lon/lat space by comparing
-    # physical width and height at the view center latitude.
-    cos_lat = max(0.2, float(np.cos(np.deg2rad(center_lat))))
-    width_km = lon_span * 111.320 * cos_lat
-    height_km = lat_span * 110.574
-    target_ratio = figure_size[0] / figure_size[1]
-    current_ratio = width_km / height_km if height_km > 0 else target_ratio
-
-    if current_ratio > target_ratio:
-        needed_height_km = width_km / target_ratio
-        lat_span = needed_height_km / 110.574
-    else:
-        needed_width_km = height_km * target_ratio
-        lon_span = needed_width_km / (111.320 * cos_lat)
-
-    return (
-        (center_lon - 0.5 * lon_span, center_lon + 0.5 * lon_span),
-        (center_lat - 0.5 * lat_span, center_lat + 0.5 * lat_span),
-    )
-
-
-def krige_frame(
-    frame: pd.DataFrame,
-    lon_grid: np.ndarray,
-    lat_grid: np.ndarray,
-    boundary,
-    distance_mask_km: float,
-    value_column: str,
-    variogram_model: str,
-) -> tuple[np.ndarray, np.ndarray, float]:
-    valid_mask, nearest_km = build_mask(
-        lon_grid,
-        lat_grid,
-        boundary,
-        frame["longitude"].to_numpy(),
-        frame["latitude"].to_numpy(),
-        distance_mask_km,
-    )
-    ok = OrdinaryKriging(
-        frame["longitude"].to_numpy(),
-        frame["latitude"].to_numpy(),
-        frame[value_column].to_numpy(),
-        variogram_model=variogram_model,
-        coordinates_type="geographic",
-        enable_plotting=False,
-        verbose=False,
-    )
-    z_grid, variance_grid = ok.execute("grid", lon_grid[0, :], lat_grid[:, 0])
-    z_grid = np.asarray(z_grid, dtype=float)
-    variance_grid = np.asarray(variance_grid, dtype=float)
-    z_grid = np.clip(z_grid, 0.0, ENHANCEMENT_BOUNDS[-1])
-    z_masked = np.where(valid_mask, z_grid, np.nan)
-    variance_masked = np.where(valid_mask, variance_grid, np.nan)
-    variance_p90 = float(np.nanpercentile(variance_masked, 90)) if np.isfinite(variance_masked).any() else np.nan
-    return z_masked, valid_mask, variance_p90
 
 
 def main() -> None:

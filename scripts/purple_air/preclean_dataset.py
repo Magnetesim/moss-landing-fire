@@ -7,9 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
+from moss_landing.paths import DATA_DIR
 
 
 def parse_args() -> argparse.Namespace:

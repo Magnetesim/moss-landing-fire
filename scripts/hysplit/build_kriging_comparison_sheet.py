@@ -10,11 +10,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
 
+from moss_landing.paths import FIGURES_DIR, KRIGING_DIR
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_KRIGING_DIR = PROJECT_ROOT / "figures" / "visualization" / "kriging" / "compare_exp8km"
-DEFAULT_HYSPLIT_DIR = PROJECT_ROOT / "figures" / "visualization" / "hysplit_compare"
-DEFAULT_OUTPUT = PROJECT_ROOT / "figures" / "visualization" / "comparison_sheets" / "kriging_vs_hysplit_exp8km.png"
+DEFAULT_KRIGING_DIR = KRIGING_DIR / "compare_exp8km"
+DEFAULT_HYSPLIT_DIR = FIGURES_DIR / "hysplit_compare"
+DEFAULT_OUTPUT = FIGURES_DIR / "comparison_sheets" / "kriging_vs_hysplit_exp8km.png"
 
 ROW_SPECS = [
     ("Window 0", "Ignition to +4 h", "window0_exp8km.png", "w16_2300_to_0300"),

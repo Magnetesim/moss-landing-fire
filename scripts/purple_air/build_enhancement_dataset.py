@@ -7,9 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from moss_landing.paths import DATA_DIR
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
 DEFAULT_INPUT_CSV = DATA_DIR / "mbuapcd_pm25_cleaned.csv"
 DEFAULT_SENSOR_CSV = DATA_DIR / "sensors_mbuapcd_active_cleaned.csv"
 DEFAULT_OUTPUT_CSV = DATA_DIR / "mbuapcd_pm25_enhancement.csv"

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,18 +11,19 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from moss_landing import paths
+from moss_landing.constants import MOSS_LANDING_LAT, MOSS_LANDING_LON
+from moss_landing.fsutil import ensure_bdyfiles_link, refresh_symlink
+from moss_landing.paths import HRRR_DIR as DEFAULT_HRRR_DIR
+from moss_landing.paths import PROJECT_ROOT
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_HRRR_DIR = PROJECT_ROOT / "hrrr"
-DEFAULT_HYSPLIT_ROOT = Path(
-    os.environ.get("HYSPLIT_ROOT", PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64")
-)
+DEFAULT_HYSPLIT_ROOT = paths.hysplit_root()
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion"
 
 DEFAULT_START_UTC = "2025-01-18T02:00:00Z"  # 2025-01-17 18:00 PST
 DEFAULT_END_UTC = "2025-01-18T06:00:00Z"    # 2025-01-17 22:00 PST
-DEFAULT_SOURCE_LAT = 36.8044
-DEFAULT_SOURCE_LON = -121.7883
+DEFAULT_SOURCE_LAT = MOSS_LANDING_LAT
+DEFAULT_SOURCE_LON = MOSS_LANDING_LON
 
 
 @dataclass(frozen=True)
@@ -190,27 +190,7 @@ def required_met_files(start_time: pd.Timestamp, end_time: pd.Timestamp) -> list
 
 
 def ensure_batch_support_files(output_root: Path, hysplit_root: Path) -> None:
-    target = hysplit_root / "bdyfiles"
-    link_path = output_root / "bdyfiles"
-    if link_path.is_symlink():
-        try:
-            if link_path.resolve(strict=True) == target.resolve(strict=True):
-                return
-        except FileNotFoundError:
-            pass
-        link_path.unlink()
-    elif os.path.lexists(link_path):
-        return
-    os.symlink(target, link_path, target_is_directory=True)
-
-
-def refresh_symlink(link_path: Path, target: Path) -> None:
-    if os.path.lexists(link_path):
-        try:
-            link_path.unlink()
-        except FileNotFoundError:
-            pass
-    os.symlink(target, link_path, target_is_directory=target.is_dir())
+    ensure_bdyfiles_link(output_root, hysplit_root)
 
 
 def update_latest_pointers(output_root: Path, run_dir: Path) -> None:

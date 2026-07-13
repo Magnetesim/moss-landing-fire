@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from moss_landing.constants import DEFAULT_IGNITION_UTC
+from moss_landing.paths import DATA_DIR
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
 DEFAULT_INPUT_CSV = DATA_DIR / "mbuapcd_pm25_enhancement.csv"
 DEFAULT_OUTPUT_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
 
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--origin-utc",
-        default="2025-01-16T23:00:00Z",
+        default=DEFAULT_IGNITION_UTC,
         help="UTC origin used to align the windows, typically ignition time.",
     )
     return parser.parse_args()

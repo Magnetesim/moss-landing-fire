@@ -5,16 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
+# Re-exported for compare_manifest_replicates.py, which imports it from here.
+from moss_landing.hysplit import import_hysplitdata  # noqa: F401
 
 
 def parse_args() -> argparse.Namespace:
@@ -23,18 +20,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--separate-manifest", type=Path, required=True)
     parser.add_argument("--output-json", type=Path, required=True)
     return parser.parse_args()
-
-
-def import_hysplitdata():
-    root = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
-    module_root = root / "python" / "hysplitdata"
-    if str(module_root) not in sys.path:
-        sys.path.insert(0, str(module_root))
-    try:
-        import hysplitdata  # noqa: PLC0415
-    except ImportError as exc:
-        raise RuntimeError(f"Could not import hysplitdata from {module_root}") from exc
-    return hysplitdata
 
 
 def as_utc(value: object) -> pd.Timestamp:

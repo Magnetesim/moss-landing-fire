@@ -15,12 +15,11 @@ try:
 except ImportError:
     cx = None
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from moss_landing.constants import MOSS_LANDING_LAT, MOSS_LANDING_LON
+from moss_landing.paths import PROJECT_ROOT
 
 DEFAULT_MANIFEST = PROJECT_ROOT / "hysplit" / "runs" / "trajectory_runs_24h_primary_fixed" / "trajectory_manifest.csv"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "figures" / "hysplit" / "trajectory_overview"
-MOSS_LANDING_LAT = 36.8044
-MOSS_LANDING_LON = -121.7883
 HEIGHT_COLORS = {
     10: "#1f77b4",
     50: "#2ca02c",

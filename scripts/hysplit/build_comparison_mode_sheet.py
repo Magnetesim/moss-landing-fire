@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+from moss_landing.paths import set_mpl_cache
+
+set_mpl_cache()
 
 import matplotlib
 matplotlib.use("Agg")
@@ -32,26 +32,18 @@ except ImportError:
     xyz = None
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
-FIGURES_DIR = PROJECT_ROOT / "figures" / "visualization"
+from moss_landing.constants import MOSS_LANDING_LAT, MOSS_LANDING_LON  # noqa: E402
+from moss_landing.hysplit import import_hysplitdata  # noqa: E402
+from moss_landing.paths import DATA_DIR, FIGURES_DIR  # noqa: E402
+
+hysplitdata = import_hysplitdata()
+
 COMPARISON_DIR = FIGURES_DIR / "comparison_sheets"
 HYSPLIT_COMPARE_DIR = FIGURES_DIR / "hysplit_compare"
-
-DEFAULT_HYSPLIT_ROOT = PROJECT_ROOT / "hysplit" / "install" / "hysplit.v5.4.2_x86_64"
-HYSPLIT_ROOT = Path(os.environ.get("HYSPLIT_ROOT", DEFAULT_HYSPLIT_ROOT))
-HYSPLITDATA_ROOT = HYSPLIT_ROOT / "python" / "hysplitdata"
-if str(HYSPLITDATA_ROOT) not in sys.path:
-    sys.path.insert(0, str(HYSPLITDATA_ROOT))
-import hysplitdata  # noqa: E402
-
 
 DEFAULT_INPUT_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
 DEFAULT_BOUNDARY = DATA_DIR / "monterey_bay_unified_apcd.geojson"
 DEFAULT_OUTPUT = COMPARISON_DIR / "purpleair_vs_hysplit_comparison_mode_25m.png"
-
-MOSS_LANDING_LAT = 36.8044
-MOSS_LANDING_LON = -121.7883
 
 WINDOW_SPECS = {
     0: {"label": "Window 0\nIgnition to +4 h", "hysplit_prefix": "w16_2300_to_0300"},

@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pandas as pd
 
+from moss_landing.constants import DEFAULT_IGNITION_UTC, MOSS_LANDING_LAT, MOSS_LANDING_LON
+from moss_landing.paths import PROJECT_ROOT
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FORWARD_SCRIPT = PROJECT_ROOT / "scripts" / "hysplit" / "run_forward_dispersion.py"
 DEFAULT_SCORE_SCRIPT = PROJECT_ROOT / "scripts" / "hysplit" / "score_against_purpleair.py"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion" / "sweeps"
-DEFAULT_IGNITION_UTC = "2025-01-16T23:00:00Z"
 DEFAULT_SOURCE_SETUPS = "point|300,120|1,1;area_grid|300,120|5,3;area_grid|600,240|7,3;area_grid|900,360|9,5"
 DEFAULT_SOURCE_HEIGHTS_M = "10,25,50,100,150,250"
 DEFAULT_RELEASE_DURATIONS_H = "4,8,12,24"
@@ -52,8 +52,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--window-hours", type=float, default=4.0)
     parser.add_argument("--window-step-hours", type=float, default=4.0)
-    parser.add_argument("--source-lat", type=float, default=36.8044)
-    parser.add_argument("--source-lon", type=float, default=-121.7883)
+    parser.add_argument("--source-lat", type=float, default=MOSS_LANDING_LAT)
+    parser.add_argument("--source-lon", type=float, default=MOSS_LANDING_LON)
     parser.add_argument("--source-rotation-deg", type=float, default=0.0)
     parser.add_argument("--emission-rate", type=float, default=1.0)
     parser.add_argument("--concentration-level-m", type=float, default=10.0)

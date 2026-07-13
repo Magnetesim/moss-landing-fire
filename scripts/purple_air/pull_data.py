@@ -1,35 +1,29 @@
-import time
-import datetime
 import argparse
+import time
 from pathlib import Path
 
 import pandas as pd
-import requests
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "purple_air"
-API_KEY = (PROJECT_ROOT / "purple_air_api.txt").read_text(encoding="utf-8").strip()
+from moss_landing.paths import DATA_DIR
+from moss_landing.purpleair import get_sensor_history, load_api_key
 
-def get_sensor_history(sensor_index, start_ts, end_ts, average=60):
+
+def pull_sensor_history(sensor_index, api_key, start_ts, end_ts, average=60):
     """
     average: 60 = hourly averages (recommended for plume work)
     """
-    r = requests.get(
-        f"https://api.purpleair.com/v1/sensors/{sensor_index}/history",
-        headers={"X-API-Key": API_KEY},
-        params={
-            "start_timestamp": start_ts,
-            "end_timestamp": end_ts,
-            "average": average,
-            "fields": "pm2.5_atm,pm2.5_cf_1,humidity"
-        }
+    data = get_sensor_history(
+        sensor_index,
+        api_key,
+        start_timestamp=start_ts,
+        end_timestamp=end_ts,
+        fields="pm2.5_atm,pm2.5_cf_1,humidity",
+        average=average,
     )
-    data = r.json()
     df = pd.DataFrame(data["data"], columns=data["fields"])
     df["sensor_index"] = sensor_index
     df["time_stamp"] = pd.to_datetime(df["time_stamp"], unit="s", utc=True)
     return df
-
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,6 +40,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    api_key = load_api_key()
     df = pd.read_csv(args.input_sensors)
     print(f"Loaded {len(df)} active sensors from {args.input_sensors}")
 
@@ -61,7 +56,7 @@ def main() -> None:
 
     for i, idx in enumerate(sensor_indices):
         try:
-            hist = get_sensor_history(idx, start, end)
+            hist = pull_sensor_history(idx, api_key, start, end)
             all_dfs.append(hist)
             if (i + 1) % 20 == 0:
                 print(f"  Progress: {i+1}/{len(sensor_indices)}")

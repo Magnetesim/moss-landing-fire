@@ -266,7 +266,7 @@ wheels = [
 [[package]]
 name = "moss-landing-fire"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "contextily" },
     { name = "matplotlib" },
@@ -295,7 +295,6 @@ requires-dist = [
     { name = "shapely", specifier = ">=2.0" },
     { name = "xyzservices", specifier = ">=2025.4" },
 ]
-provides-extras = ["map", "science"]
 
 [[package]]
 name = "narwhals"
