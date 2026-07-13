@@ -70,6 +70,15 @@ After staging the repository, static HYSPLIT bundle, and required HRRR blocks un
 bash nersc/bootstrap_env.sh
 ```
 
+The current Perlmutter source tree was transferred rather than cloned with Git. To deploy a repository update, synchronize the complete source tree into a new versioned directory, then set `MOSS_REPO` while bootstrapping it. Smoke-test that directory before using it for campaign submissions:
+
+```bash
+MOSS_REPO="$SCRATCH/moss-landing-fire/repo/moss-landing-fire-YYYYMMDD" \
+  bash nersc/bootstrap_env.sh
+```
+
+Keep the HYSPLIT distribution, HRRR input, secrets, and generated runs outside the repository source directory.
+
 Build the default 96-physical-run combined phase-1 manifest and submit a packed CPU-node job:
 
 ```bash

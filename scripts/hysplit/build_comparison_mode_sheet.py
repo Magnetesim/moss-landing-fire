@@ -33,10 +33,8 @@ except ImportError:
 
 
 from moss_landing.constants import MOSS_LANDING_LAT, MOSS_LANDING_LON  # noqa: E402
-from moss_landing.hysplit import import_hysplitdata  # noqa: E402
+from moss_landing.hysplit import get_hysplitdata  # noqa: E402
 from moss_landing.paths import DATA_DIR, FIGURES_DIR  # noqa: E402
-
-hysplitdata = import_hysplitdata()
 
 COMPARISON_DIR = FIGURES_DIR / "comparison_sheets"
 HYSPLIT_COMPARE_DIR = FIGURES_DIR / "hysplit_compare"
@@ -286,7 +284,7 @@ def enhancement_to_class(values: np.ndarray) -> np.ndarray:
 def load_hysplit_grid(json_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
     metadata = json.loads(json_path.read_text(encoding="utf-8"))
     cdump_path = Path(metadata["cdump_path"])
-    cdump = hysplitdata.read_cdump(str(cdump_path))
+    cdump = get_hysplitdata().read_cdump(str(cdump_path))
     grids = [grid for grid in cdump.grids if grid.time_index == int(metadata["time_index"]) and grid.vert_level == int(metadata["level_m_agl"])]
     pollutant = metadata["pollutant"]
     grids = [grid for grid in grids if grid.pollutant == pollutant]
