@@ -781,7 +781,15 @@ The extraction is intentionally pragmatic rather than total. Some scientific wor
 
 ### Deploying the Refactor to NERSC
 
-The currently staged Perlmutter source directory is a transferred working tree, not a Git clone. Do **not** run `git pull` there. Its pre-refactor scripts and environment remain usable until an explicit source refresh.
+The original staged Perlmutter source directory is a transferred working tree, not a Git clone. Do **not** run `git pull` there. Its pre-refactor scripts and environment remain usable until an explicit source refresh.
+
+The review cleanup commit `1ced7a6` was independently validated on Perlmutter on 2026-07-13 from the versioned Git clone `$SCRATCH/moss-landing-fire/repo/moss-landing-fire-review-1ced7a6`:
+
+- the locked Python environment bootstrapped successfully and installed the editable `moss_landing` package
+- all 26 unit tests passed on a NERSC login node
+- one 500-particle, 10 m point-source HYSPLIT manifest row ran on compute node `nid004321` as Slurm job `55879831`
+- Slurm reported `COMPLETED` with exit code `0:0` in 26 seconds; the row runner recorded 10.734 seconds
+- the run produced a 25,044-byte `cdump`, and the refactored lazy HYSPLIT loader parsed its grid record successfully
 
 For the next deployment:
 
