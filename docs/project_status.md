@@ -15,7 +15,7 @@ Current Windows project root:
 
 Status date:
 
-- `2026-07-13`
+- `2026-07-22`
 
 ## Current Summary
 
@@ -152,6 +152,65 @@ The HYSPLIT executable bundle is small enough to transfer from the laptop. HRRR 
 3. NOAA ARL FTP redownload only for missing or corrupt HRRR files.
 
 Do not push HYSPLIT binaries, HRRR files, or generated run products into Git.
+
+### July 22-August 3, 2026 Perlmutter Outage and Data Availability
+
+NERSC powered down Perlmutter on July 22 for a facility power upgrade and currently expects it to return on August 3. Perlmutter login and compute nodes and the Perlmutter scratch filesystem are unavailable for the entire interval. DTNs, CFS, and HPSS are also unavailable during the July 22-24 emergency-power-off work; NERSC expects those services to return by approximately noon July 24, but they will not be able to access Perlmutter scratch before Perlmutter returns. Official notice: <https://www.nersc.gov/users/user-news/major-power-upgrade-to-disrupt-services-july-20-august-7>.
+
+The outage makes the scratch-resident project files inaccessible; there is no evidence that they were lost. The current limitation is access and the absence of a verified second copy of generated NERSC results.
+
+#### Available outside NERSC
+
+- Project source and documentation:
+  - local clone: `C:\Users\myles\Documents\Codex\2026-07-10\c\moss-landing-fire`
+  - GitHub repository: `Magnetesim/moss-landing-fire`
+  - the latest cleanup and NERSC-smoke-validation commits are preserved locally and on GitHub; confirm that `main` contains them before using a fresh clone for new work
+- HYSPLIT distributions under `C:\Users\myles\Documents\HYSPLIT\exec`:
+  - four registered NOAA HYSPLIT 5.4.2 archives are present
+  - the portable static archive `hysplit.v5.4.2_x86_64.tar.gz` is present and is 540,085,069 bytes
+  - these registered binaries remain local-only and must not be committed to Git
+- HRRR ARL meteorology under `C:\Users\myles\Documents\HYSPLIT\hrrr`:
+  - twelve six-hour blocks spanning all of January 16-18, 2025 are present, which includes the nine blocks originally required by the project
+  - the twelve extracted blocks total 41,014,951,848 bytes
+  - `hrrr_downloads.tar.zst` is also present at 13,021,054,407 bytes
+  - the complete local folder contains 14 files and totals 54,036,040,094 bytes
+- PurpleAir observations, boundaries, reference inputs, scripts, and environment definitions are present in the local clone and GitHub:
+  - 19 tracked data/figure/report files total approximately 22.1 MB
+  - `pyproject.toml` and `uv.lock` are sufficient to rebuild the Python environment
+- The scientific conclusions, job IDs, timing results, and headline convergence statistics from the completed NERSC campaigns are recorded in this document.
+
+These copies are sufficient to reproduce the software environment, stage HYSPLIT and HRRR on another Linux system, rerun prior experiments, and continue the planned 20,000/50,000-particle convergence work without waiting for Perlmutter. Native Windows HYSPLIT execution has not been configured, so WSL or another Linux compute system is the practical replacement environment.
+
+#### Currently available only on Perlmutter scratch
+
+No local `hysplit/runs` tree, `cdump` products, merged manifests, row-status files, or particle-convergence output tables were found during the July 22 laptop inventory. The following generated artifacts are therefore presumed to have only a scratch-resident copy until verified otherwise:
+
+- packing-benchmark outputs for 29 physical runs
+- combined-versus-separate validation outputs
+- determinism, seed-sensitivity, `KRAND`, particle-count, and cumulative-validation outputs
+- the 24 physical HYSPLIT runs and 96 logical-window scores from the particle-convergence campaign
+- convergence summary CSV/JSON products and underlying per-scenario/per-window score tables
+- the July 13 review smoke run
+- individual `cdump` files, manifests, merged manifests, row-status JSON, runner logs, and Slurm logs associated with those campaigns
+- the expanded NERSC HYSPLIT install tree and Conda/uv environments, although these are reproducible from the local static archive and locked repository environment
+
+The recorded conclusions remain usable, but exact reanalysis, new plots from prior runs, audit of individual rows, and comparison against the original binary `cdump` files must wait for scratch access or require rerunning those cases elsewhere.
+
+#### Practical Answer and Recovery Priority
+
+- The project is not blocked from moving to another Linux compute resource: all essential source code, registered HYSPLIT runtime input, HRRR meteorology, PurpleAir data, and environment definitions exist outside NERSC.
+- The project is temporarily blocked from reusing or auditing the exact raw NERSC outputs.
+- Files on scratch should be treated as inaccessible rather than lost, but scratch is not archival storage and the current lack of a verified second copy is a reproducibility risk.
+- When Perlmutter returns, the first operational task should be to inventory and archive the generated results before launching more compute.
+
+Post-outage recovery checklist:
+
+1. inventory `$SCRATCH/moss-landing-fire/work` and all generated HYSPLIT run directories; confirm that manifests and outputs survived the outage
+2. copy all manifests, merged score CSVs, convergence tables, summary JSON, row-status JSON, and relevant logs to durable CFS or HPSS storage
+3. copy those compact provenance/results files back to the laptop and document their local location
+4. archive either all `cdump` files or a documented representative/decisive subset, depending on total size
+5. preserve checksums for archived binary outputs and record the CFS/HPSS paths here
+6. confirm that `main` contains the cleanup and NERSC-smoke-validation commits before retiring the feature branch
 
 ### PurpleAir Data
 
