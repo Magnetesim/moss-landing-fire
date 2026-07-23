@@ -21,10 +21,8 @@ from shapely.prepared import prep
 
 
 from moss_landing.constants import ENHANCEMENT_BOUNDS as ENHANCEMENT_BOUNDS_LIST  # noqa: E402
-from moss_landing.hysplit import import_hysplitdata  # noqa: E402
+from moss_landing.hysplit import get_hysplitdata  # noqa: E402
 from moss_landing.paths import DATA_DIR, PROJECT_ROOT  # noqa: E402
-
-hysplitdata = import_hysplitdata()
 
 DEFAULT_PURPLEAIR_CSV = DATA_DIR / "mbuapcd_pm25_enhancement_4h.csv"
 DEFAULT_BOUNDARY = DATA_DIR / "monterey_bay_unified_apcd.geojson"
@@ -265,7 +263,7 @@ def load_hysplit_conc(
     sample_start_utc: object | None = None,
     sample_stop_utc: object | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    cdump = hysplitdata.read_cdump(str(cdump_path))
+    cdump = get_hysplitdata().read_cdump(str(cdump_path))
     try:
         time_index = select_time_index(cdump, sample_start_utc, sample_stop_utc)
     except ValueError as exc:

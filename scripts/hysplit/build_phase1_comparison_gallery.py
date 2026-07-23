@@ -39,10 +39,8 @@ from moss_landing.constants import (  # noqa: E402
     MOSS_LANDING_LAT,
     MOSS_LANDING_LON,
 )
-from moss_landing.hysplit import import_hysplitdata  # noqa: E402
+from moss_landing.hysplit import get_hysplitdata  # noqa: E402
 from moss_landing.paths import DATA_DIR, FIGURES_DIR, PROJECT_ROOT  # noqa: E402
-
-hysplitdata = import_hysplitdata()
 
 DEFAULT_PER_RUN = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion" / "sweeps" / "scoring" / "phase1_matrix_20260622d_manifest_per_run_scores.csv"
 DEFAULT_PER_SCENARIO = PROJECT_ROOT / "hysplit" / "runs" / "forward_dispersion" / "sweeps" / "scoring" / "phase1_matrix_20260622d_manifest_scenario_scores.csv"
@@ -257,7 +255,7 @@ def load_hysplit_conc(
     sample_start_utc: object,
     sample_stop_utc: object,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    cdump = hysplitdata.read_cdump(str(cdump_path))
+    cdump = get_hysplitdata().read_cdump(str(cdump_path))
     target_start = as_utc_timestamp(sample_start_utc)
     target_stop = as_utc_timestamp(sample_stop_utc)
     matching_indices = sorted(

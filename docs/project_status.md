@@ -15,7 +15,7 @@ Current Windows project root:
 
 Status date:
 
-- `2026-07-12`
+- `2026-07-22`
 
 ## Current Summary
 
@@ -152,6 +152,65 @@ The HYSPLIT executable bundle is small enough to transfer from the laptop. HRRR 
 3. NOAA ARL FTP redownload only for missing or corrupt HRRR files.
 
 Do not push HYSPLIT binaries, HRRR files, or generated run products into Git.
+
+### July 22-August 3, 2026 Perlmutter Outage and Data Availability
+
+NERSC powered down Perlmutter on July 22 for a facility power upgrade and currently expects it to return on August 3. Perlmutter login and compute nodes and the Perlmutter scratch filesystem are unavailable for the entire interval. DTNs, CFS, and HPSS are also unavailable during the July 22-24 emergency-power-off work; NERSC expects those services to return by approximately noon July 24, but they will not be able to access Perlmutter scratch before Perlmutter returns. Official notice: <https://www.nersc.gov/users/user-news/major-power-upgrade-to-disrupt-services-july-20-august-7>.
+
+The outage makes the scratch-resident project files inaccessible; there is no evidence that they were lost. The current limitation is access and the absence of a verified second copy of generated NERSC results.
+
+#### Available outside NERSC
+
+- Project source and documentation:
+  - local clone: `C:\Users\myles\Documents\Codex\2026-07-10\c\moss-landing-fire`
+  - GitHub repository: `Magnetesim/moss-landing-fire`
+  - the latest cleanup and NERSC-smoke-validation commits are preserved locally and on GitHub; confirm that `main` contains them before using a fresh clone for new work
+- HYSPLIT distributions under `C:\Users\myles\Documents\HYSPLIT\exec`:
+  - four registered NOAA HYSPLIT 5.4.2 archives are present
+  - the portable static archive `hysplit.v5.4.2_x86_64.tar.gz` is present and is 540,085,069 bytes
+  - these registered binaries remain local-only and must not be committed to Git
+- HRRR ARL meteorology under `C:\Users\myles\Documents\HYSPLIT\hrrr`:
+  - twelve six-hour blocks spanning all of January 16-18, 2025 are present, which includes the nine blocks originally required by the project
+  - the twelve extracted blocks total 41,014,951,848 bytes
+  - `hrrr_downloads.tar.zst` is also present at 13,021,054,407 bytes
+  - the complete local folder contains 14 files and totals 54,036,040,094 bytes
+- PurpleAir observations, boundaries, reference inputs, scripts, and environment definitions are present in the local clone and GitHub:
+  - 19 tracked data/figure/report files total approximately 22.1 MB
+  - `pyproject.toml` and `uv.lock` are sufficient to rebuild the Python environment
+- The scientific conclusions, job IDs, timing results, and headline convergence statistics from the completed NERSC campaigns are recorded in this document.
+
+These copies are sufficient to reproduce the software environment, stage HYSPLIT and HRRR on another Linux system, rerun prior experiments, and continue the planned 20,000/50,000-particle convergence work without waiting for Perlmutter. Native Windows HYSPLIT execution has not been configured, so WSL or another Linux compute system is the practical replacement environment.
+
+#### Currently available only on Perlmutter scratch
+
+No local `hysplit/runs` tree, `cdump` products, merged manifests, row-status files, or particle-convergence output tables were found during the July 22 laptop inventory. The following generated artifacts are therefore presumed to have only a scratch-resident copy until verified otherwise:
+
+- packing-benchmark outputs for 29 physical runs
+- combined-versus-separate validation outputs
+- determinism, seed-sensitivity, `KRAND`, particle-count, and cumulative-validation outputs
+- the 24 physical HYSPLIT runs and 96 logical-window scores from the particle-convergence campaign
+- convergence summary CSV/JSON products and underlying per-scenario/per-window score tables
+- the July 13 review smoke run
+- individual `cdump` files, manifests, merged manifests, row-status JSON, runner logs, and Slurm logs associated with those campaigns
+- the expanded NERSC HYSPLIT install tree and Conda/uv environments, although these are reproducible from the local static archive and locked repository environment
+
+The recorded conclusions remain usable, but exact reanalysis, new plots from prior runs, audit of individual rows, and comparison against the original binary `cdump` files must wait for scratch access or require rerunning those cases elsewhere.
+
+#### Practical Answer and Recovery Priority
+
+- The project is not blocked from moving to another Linux compute resource: all essential source code, registered HYSPLIT runtime input, HRRR meteorology, PurpleAir data, and environment definitions exist outside NERSC.
+- The project is temporarily blocked from reusing or auditing the exact raw NERSC outputs.
+- Files on scratch should be treated as inaccessible rather than lost, but scratch is not archival storage and the current lack of a verified second copy is a reproducibility risk.
+- When Perlmutter returns, the first operational task should be to inventory and archive the generated results before launching more compute.
+
+Post-outage recovery checklist:
+
+1. inventory `$SCRATCH/moss-landing-fire/work` and all generated HYSPLIT run directories; confirm that manifests and outputs survived the outage
+2. copy all manifests, merged score CSVs, convergence tables, summary JSON, row-status JSON, and relevant logs to durable CFS or HPSS storage
+3. copy those compact provenance/results files back to the laptop and document their local location
+4. archive either all `cdump` files or a documented representative/decisive subset, depending on total size
+5. preserve checksums for archived binary outputs and record the CFS/HPSS paths here
+6. confirm that `main` contains the cleanup and NERSC-smoke-validation commits before retiring the feature branch
 
 ### PurpleAir Data
 
@@ -764,68 +823,51 @@ It already supports:
 
 What it does not yet support is a final, physically calibrated plume reconstruction. The immediate technical question is particle-count convergence for sensitive point sources; the immediate scientific question is whether the remaining model/observation mismatch can be reduced without overfitting uncertain source assumptions.
 
-## Code Review Recommendations (2026-07-12)
+## Codebase Review Status (2026-07-13)
 
-Engineering-focused review of the repository as cloned to the new Windows working copy at `C:\Users\myles\Documents\moss_landing_fire_research\moss-landing-fire`. These complement (not replace) the scientific "Recommended Next Steps" above. Nothing here blocks the current NERSC campaign; items are ordered by value-per-effort.
+The shared-package refactor has been reviewed and retained. The repository now installs an editable `moss_landing` package containing paths, event constants, PurpleAir HTTP helpers, HYSPLIT import glue, filesystem helpers, and common kriging utilities. The refactor preserves the existing kriging result for the checked project window and removes a substantial amount of script-level duplication.
 
-**Update (implemented 2026-07-12, same day):** the README fixes and the shared-package refactor below are now done. A `moss_landing/` package (paths, constants, purpleair, hysplit, fsutil, kriging) was created, `pyproject.toml` gained a hatchling build so `uv sync` installs it editable, `uv.lock` was regenerated, and all scripts were migrated off their copy-pasted helpers. The PurpleAir HTTP fixes (timeouts, `raise_for_status`, 429/5xx retry, lazy API-key loading) and the Windows symlink fallback landed as part of the same package. Verified on Windows: full test suite passes (16/16), every CLI script imports and prints `--help`, and the tier1 bubble map plus a kriged window-1 panel were rebuilt end-to-end from repo data. Existing clones (including the NERSC staging copy) need one `git pull && uv sync` to pick up the editable package. Note for the Windows partition: `uv` is not installed there (it is on the Arch partition); the refactor was verified with a locally created `.venv`, so either install uv on Windows or call `.venv\Scripts\python.exe` directly. Still open from this review: the fire-start/ignition question (constants now carry an explanatory comment, but the 23:00 Z choice still needs a decision), `lftp`→`ftplib` in `download_hrrr.py`, pytest/ruff/CI tooling, additional test modules for the PurpleAir cleaning rules, and the data-hygiene items.
+Review cleanup completed after the refactor:
 
-### Documentation fixes (quick wins)
+- HYSPLIT analysis commands import NOAA's registered `hysplitdata` module only when a cdump is actually read, so `--help` works without a local HYSPLIT install
+- direct tests now cover the shared path, filesystem, HYSPLIT-import, PurpleAir HTTP, and kriging helpers
+- subprocess regression tests cover the four HYSPLIT analysis CLIs that previously failed during argument-only use
+- README paths and commands are platform-neutral
+- PurpleAir requests have explicit timeouts, status checking, retry/backoff, and lazy API-key loading
+- Windows systems without symlink privileges fall back to copying convenience outputs
 
-1. `README.md` contains three broken markdown links whose targets are absolute paths from the old Linux machine (`/home/magnetesim/Documents/project/moss_landing_fire/...`) at lines 23, 42, and 102. Replace with relative links: `pyproject.toml`, `docs/local_data.md`, `docs/project_status.md`.
-2. The "Current Windows project root" recorded near the top of this file (`C:\Users\myles\Documents\Codex\2026-07-10\c\moss-landing-fire`) is stale; the active clone is now `C:\Users\myles\Documents\moss_landing_fire_research\moss-landing-fire`.
-3. All documented commands use `./.venv/bin/python`, which does not exist on Windows (`.venv\Scripts\python.exe`). Since the project already uses uv, switching every documented invocation to `uv run python scripts/...` makes each command copy-pasteable on Linux, NERSC, and Windows alike.
-4. `docs/e74d0637-841e-4d7e-a978-d6006c5110ce.jpg` is an unlabeled blob; rename it to something descriptive or note its provenance here.
-5. `.gitignore` ignores `docs/CRL_Climate_Justice_Javier_Racine.pptx`, which looks unrelated to this project; if the file no longer exists locally, the ignore line can go.
+The extraction is intentionally pragmatic rather than total. Some scientific workflows still contain specialized kriging and data-selection logic. Consolidate those only alongside representative-output tests; forcing every variant through one abstraction would make scientific behavior harder to audit.
 
-### Deduplicate shared code into a small package
+### Deploying the Refactor to NERSC
 
-The single largest structural issue: every one of the 34 scripts is standalone, so common code is copy-pasted. Concretely observed duplication:
+The original staged Perlmutter source directory is a transferred working tree, not a Git clone. Do **not** run `git pull` there. Its pre-refactor scripts and environment remain usable until an explicit source refresh.
 
-- `PROJECT_ROOT = Path(__file__).resolve().parents[2]` in 25 scripts
-- Moss Landing source coordinates `36.8044, -121.7883` hard-coded in about 10 scripts under various names (`MOSS_LANDING_LAT`, `DEFAULT_SOURCE_LAT`, `ml_lat`, argparse defaults)
-- `refresh_symlink` / symlink-refresh logic in 4 HYSPLIT runner scripts
-- the `hysplitdata` `sys.path` import boilerplate in about 6 scripts (`compare_combined_to_separate.py` already has the right shape as an `import_hysplitdata()` function; the others should call it)
-- PurpleAir API-key loading in 4 scripts
-- ordinary-kriging grid execution (`OrdinaryKriging(...)` + `ok.execute("grid", ...)` + masking) in at least 5 scripts
+The review cleanup commit `1ced7a6` was independently validated on Perlmutter on 2026-07-13 from the versioned Git clone `$SCRATCH/moss-landing-fire/repo/moss-landing-fire-review-1ced7a6`:
 
-Recommended shape: a `moss_landing/` (or `mlfire/`) package with modules like `constants.py` (coordinates, fire-start timestamps, default window definitions), `paths.py` (`PROJECT_ROOT`, `HYSPLIT_ROOT` resolution), `purpleair.py` (API key + HTTP session), `hysplit_io.py` (`import_hysplitdata`, cdump period selection), `kriging.py`, and `fsutil.py` (symlink/copy helper). Add the package to `pyproject.toml` so `uv sync` installs it editable, then have scripts import from it. This also lets `tests/test_combined_hysplit_sweep.py` drop its `importlib.util.spec_from_file_location` loader shim, which exists only because the scripts are not importable as modules.
+- the locked Python environment bootstrapped successfully and installed the editable `moss_landing` package
+- all 26 unit tests passed on a NERSC login node
+- one 500-particle, 10 m point-source HYSPLIT manifest row ran on compute node `nid004321` as Slurm job `55879831`
+- Slurm reported `COMPLETED` with exit code `0:0` in 26 seconds; the row runner recorded 10.734 seconds
+- the run produced a 25,044-byte `cdump`, and the refactored lazy HYSPLIT loader parsed its grid record successfully
 
-The already-noted `HYSPLIT_ROOT` hard-coding (see "Cluster-safe Runner Implementation" above) is naturally solved by the same `paths.py`: `os.environ.get("HYSPLIT_ROOT")` falling back to the repo-relative default.
+For the next deployment:
 
-### Fire-start / ignition consistency
+1. transfer or synchronize the complete repository source into a new versioned directory under `$SCRATCH/moss-landing-fire/repo/`
+2. keep `hysplit/`, `hrrr/`, run products, and secrets outside the Git repository
+3. bootstrap against the new source with `MOSS_REPO=/path/to/new/source bash nersc/bootstrap_env.sh`; this runs `uv sync --frozen --no-managed-python`
+4. run CLI, manifest, and one-row HYSPLIT smoke tests against that versioned source
+5. only then point campaign submissions at the new `MOSS_REPO`
 
-Three related but different timestamps exist in code defaults:
+A local Git clone can instead be updated normally and followed by `uv sync --frozen`.
 
-- `run_phase1_sweep.py`: `DEFAULT_IGNITION_UTC = 2025-01-16T23:00:00Z`
-- `extract_receptor_events.py`: `DEFAULT_FIRE_START_UTC = 2025-01-17T01:35:00Z`
-- `krige_enhancement.py`: `FIRE_START_LOCAL = 2025-01-16 17:35 Pacific` (= 01:35 UTC, consistent with the receptor default)
+### Open Engineering Work
 
-The phase-1 sweep ignition default is therefore 2 h 35 min earlier than the documented fire-start assumption used by the observation-side scripts. If the 23:00 Z choice is deliberate (HRRR block alignment, pre-release spin-up, or conservative early release), record the rationale next to the constant and in this file; if not, align it. Centralizing these in `constants.py` (previous section) forces the question to be answered once.
+These items remain useful, but none blocks the existing staged NERSC workflow:
 
-### PurpleAir HTTP robustness
-
-- `pull_data.py` and `sanity_check.py` call `requests.get` with no `timeout` (a hung connection blocks forever) and no `raise_for_status()` — `pull_data.py` goes straight to `r.json()["data"]`, so a 429 rate-limit or error response surfaces as an opaque `KeyError`. `discovery.py` (timeout=60 + raise_for_status) and `filter_active_sensors.py` (timeout=15) are the good examples.
-- Add a shared session helper with timeout, `raise_for_status`, and simple retry/backoff on 429/5xx.
-- `pull_data.py`, `filter_active_sensors.py`, and `sanity_check.py` read `purple_air_api.txt` at module import time, so even `--help` crashes with a traceback when the file is absent. Move the read inside `main()` with a clear error message (`discovery.py` already does this via `--api-key-path`).
-- `sanity_check.py` runs requests at module top level (line ~70); wrap in a `main()` guard.
-
-### Windows portability (now directly relevant)
-
-The "Windows Support Notes" section above still describes the plan; specific code-level items found:
-
-- `os.symlink` calls in `run_backward_trajectories.py`, `run_forward_dispersion.py`, `run_forward_sensitivity.py`, and `run_forward_time_height_ensemble.py` raise `OSError` on Windows without Developer Mode. Wrap in a helper that falls back to `shutil.copytree`/`copy2` (the `latest/` pointers are conveniences, so copy semantics are acceptable).
-- `download_hrrr.py` shells out to `lftp`, which is Unix-only; Python's stdlib `ftplib` (or `urllib` if ARL exposes HTTPS) would remove the external dependency entirely and work on all three platforms.
-- HYSPLIT executable names will need a `.exe` suffix helper once native Windows HYSPLIT is attempted; the PurpleAir/kriging/report side should already run on Windows once the venv exists.
-
-### Testing and tooling
-
-- `tests/test_combined_hysplit_sweep.py` is genuinely good (5 test classes covering window building, manifest expansion, comparator bookkeeping, convergence summaries, and cdump period selection), but it is the only test module. Highest-value additions: PurpleAir precleaning rules (`preclean_dataset.py`), enhancement/baseline construction, and receptor-event extraction thresholds — these encode scientific decisions that would silently drift.
-- There is no test runner or linter configuration at all. Suggested minimal additions to `pyproject.toml`: a `[dependency-groups] dev = ["pytest", "ruff"]` group and a short `[tool.ruff]` block; then a ~15-line GitHub Actions workflow running `uv sync && uv run pytest && uv run ruff check` on push. The repo is already on GitHub, so CI is nearly free and protects the NERSC-critical manifest/scoring logic.
-- The empty `[project.optional-dependencies] map = []` / `science = []` tables in `pyproject.toml` are dead config; remove them or populate them.
-- `pytz` could be replaced by stdlib `zoneinfo` (Python ≥3.9), dropping a dependency; low priority.
-
-### Data hygiene
-
-- `data/purple_air/mbuapcd_pm25.csv` and derivatives are tracked in Git and total tens of MB. This is a deliberate choice per "Git-tracked / portable" above and is fine at current scale, but if pulls expand (more sensors, longer windows), consider Git LFS or a documented regeneration path instead of history growth.
-- A reusable sensor blacklist file (already listed as scientific next step 6) would also remove the hard-coded `72253` scattered through kriging command lines and script defaults.
+- decide and document whether the default HYSPLIT release time should remain `2025-01-16T23:00:00Z` or align with the observation-side fire start at `2025-01-17T01:35:00Z`
+- replace the Unix-only `lftp` HRRR downloader dependency with a portable Python transport
+- add pytest/ruff configuration and GitHub Actions once the desired CI policy is chosen
+- add representative-output tests before further consolidating scientific transformations
+- move a growing observation archive to Git LFS or a reproducible external-data workflow if Git history becomes unwieldy
+- replace repeated sensor exclusions with a versioned sensor-quality/blacklist file
+- add executable-name handling before attempting native Windows HYSPLIT runs

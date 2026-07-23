@@ -28,9 +28,7 @@ try:
 except ImportError:
     xyz = None
 
-from moss_landing.hysplit import import_hysplitdata  # noqa: E402
-
-hysplitdata = import_hysplitdata()
+from moss_landing.hysplit import get_hysplitdata  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -485,7 +483,7 @@ def main() -> None:
     output_csv = args.output_csv or default_output_path(cdump_path, "nonzero.csv")
     output_json = args.output_json or default_output_path(cdump_path, "summary.json")
 
-    cdump = hysplitdata.read_cdump(str(cdump_path))
+    cdump = get_hysplitdata().read_cdump(str(cdump_path))
     inferred = infer_run_metadata(cdump_path)
     time_index = resolve_time_index(cdump, args.time_index)
     selected_grids, level, pollutant = select_grids(cdump, time_index, args.level, args.pollutant)
